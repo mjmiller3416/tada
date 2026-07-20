@@ -1,7 +1,7 @@
 # Tada — Build Prompts
 ---
 
-## Phase 0 — Foundation & scaffold
+✅ ## Phase 0 — Foundation & scaffold
 
 ```
 Read SPEC.md fully before starting. We're building Phase 0 only: the deployed
@@ -39,7 +39,7 @@ receive the test push.
 Do NOT build any cleaning features yet — only the foundation above.
 ```
 
-**Phase 0 is done when:** the app is deployed on Railway, the owner can log in, the PWA installs on the phone, and a manually triggered test push actually arrives on the phone. Then remove/disable the temporary test-push trigger.
+✅ **Phase 0 is done when:** the app is deployed on Railway, the owner can log in, the PWA installs on the phone, and a manually triggered test push actually arrives on the phone. Then remove/disable the temporary test-push trigger.
 
 ---
 
@@ -52,7 +52,8 @@ throughout. Do NOT build feature screens here.
 
 Build:
 1. Design tokens as the single source of truth — CSS variables (or theme config): the
-   palette (coral #D85A30 for primary actions, teal #1D9E75 for Done/success, plus the
+   palette (rose coral #E15B54 for primary actions, teal #1D9E75 for Done/success,
+   wisteria purple #7E57B2 for celebration/reward moments, plus the
    cheerful category tints), typography (a friendly rounded sans, two weights), a spacing
    scale, corner radii (cards ~12px, buttons ~14px, pills fully rounded), and
    motion/transition values. Wire these into the PWA theming.
@@ -102,7 +103,7 @@ Build:
 7. Reminders: populate the Reminder table from task due-times / a daily nudge time in
    Settings, so the Phase 0 cron now actually sends real reminders.
 
-Apply the design system in SPEC §5 precisely: coral (#D85A30) primary actions, teal
+Apply the design system in SPEC §5 precisely: rose coral (#E15B54) primary actions, teal
 (#1D9E75) for Done, cheerful color-coded chips, rounded friendly shapes, warm
 first-name no-guilt copy. Phone = one-thing-at-a-time; Chromebook = full lists/editing.
 Follow SPEC §8 conventions and summarize what you built when done.

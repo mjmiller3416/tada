@@ -1,0 +1,26 @@
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+  transition:
+    background-color var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-pop);
+}
+
+/* Already completed in this session. */
+.done {
+  background: var(--color-teal);
+}
+
+/* The one on screen right now. */
+.current {
+  background: var(--color-coral);
+  transform: scale(1.4);
+}

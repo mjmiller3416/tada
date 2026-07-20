@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
+import { Button, Card } from "@/components/ui";
+import styles from "./login.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,7 +20,7 @@ export default function LoginPage() {
       await login(pin);
       router.replace("/");
     } catch {
-      setError("That PIN didn't work — try again.");
+      setError("That PIN didn’t work — try again.");
       setPin("");
     } finally {
       setSubmitting(false);
@@ -26,41 +28,37 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      style={{
-        padding: 24,
-        maxWidth: 320,
-        margin: "10vh auto 0",
-        textAlign: "center",
-      }}
-    >
-      <h1>Tada</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="password"
-          inputMode="numeric"
-          autoFocus
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-          placeholder="Enter your PIN"
-          style={{
-            fontSize: 24,
-            textAlign: "center",
-            letterSpacing: 8,
-            padding: "12px 16px",
-            width: "100%",
-            boxSizing: "border-box",
-          }}
-        />
-        <button
-          type="submit"
-          disabled={submitting || pin.length === 0}
-          style={{ marginTop: 16, width: "100%", padding: "12px 16px" }}
-        >
-          Log in
-        </button>
-      </form>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+    <main className={styles.page}>
+      <h1 className={styles.wordmark}>Tada</h1>
+      <p className={styles.tagline}>Your home’s cleaning coach ✨</p>
+
+      <Card padding="lg" className={styles.card}>
+        <form onSubmit={handleSubmit} className={styles.form}>
+          <label htmlFor="pin" className={styles.label}>
+            Enter your PIN
+          </label>
+          <input
+            id="pin"
+            type="password"
+            inputMode="numeric"
+            autoFocus
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            placeholder="••••"
+            className={styles.pin}
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            fullWidth
+            disabled={submitting || pin.length === 0}
+          >
+            {submitting ? "One sec…" : "Let’s go"}
+          </Button>
+        </form>
+        {error && <p className={styles.error}>{error}</p>}
+      </Card>
     </main>
   );
 }

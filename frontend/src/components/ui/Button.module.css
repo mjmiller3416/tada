@@ -1,0 +1,87 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: none;
+  border-radius: var(--radius-button);
+  font-weight: var(--weight-bold);
+  line-height: 1.2;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--motion-fast) var(--ease-pop),
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
+/* Satisfying press: a little squash on tap. */
+.button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---- Sizes (both comfortably tappable one-handed) ---- */
+
+.md {
+  font-size: var(--text-base);
+  padding: 10px var(--space-5);
+  min-height: 44px;
+}
+
+.lg {
+  font-size: var(--text-lg);
+  padding: 14px var(--space-6);
+  min-height: var(--tap-target);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+/* ---- Variants ---- */
+
+.primary {
+  background: var(--color-coral);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-coral-strong);
+}
+
+.success {
+  background: var(--color-teal);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.success:hover:not(:disabled) {
+  background: var(--color-teal-strong);
+}
+
+.secondary {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 2px solid var(--color-line);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--color-ink-soft);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-ink-soft);
+}
+
+.ghost:hover:not(:disabled) {
+  color: var(--color-ink);
+  background: var(--tint-neutral-bg);
+}

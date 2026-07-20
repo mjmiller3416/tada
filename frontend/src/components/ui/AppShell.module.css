@@ -1,0 +1,74 @@
+.shell {
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+.header {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+/* Leave room for the fixed bottom nav plus the phone's gesture inset. */
+.withNav {
+  padding-bottom: calc(76px + env(safe-area-inset-bottom) + var(--space-5));
+}
+
+.nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.navInner {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+}
+
+.navItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 60px;
+  padding: var(--space-2) 0;
+  color: var(--color-ink-soft);
+  text-decoration: none;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+
+.navItem:active .navIcon {
+  transform: scale(0.9);
+}
+
+.active {
+  color: var(--color-coral);
+}
+
+.navIcon {
+  font-size: 1.4rem;
+  line-height: 1;
+  transition: transform var(--motion-fast) var(--ease-pop);
+}

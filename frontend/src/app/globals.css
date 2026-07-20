@@ -1,12 +1,143 @@
+/*
+ * Tada design tokens — the single source of truth (SPEC §5).
+ *
+ * Every UI primitive in src/components/ui consumes these variables and
+ * nothing else: no component hard-codes a color, radius, spacing step,
+ * or duration. Later phases grow the component library from this same
+ * set so the look stays cohesive.
+ */
+
+:root {
+  /* ---- Palette: the anchor triad ----
+   * Coral, teal, and purple sit ~evenly around the color wheel and each
+   * owns one job: coral = go (primary actions), teal = done (success),
+   * purple = celebrate (badges, streaks, confetti, overlay accents).
+   * Every other hue in the app bridges two anchors — see the chip tints.
+   */
+  --color-coral: #e15b54;        /* rose coral — primary action, the "go" color */
+  --color-coral-strong: #c14840; /* hover / pressed */
+  --color-coral-soft: #fbe4e1;   /* soft coral tint for backgrounds */
+  --color-teal: #1d9e75;         /* success / Done */
+  --color-teal-strong: #17855f;
+  --color-teal-soft: #dcf2e9;
+  --color-purple: #7e57b2;       /* wisteria — celebration & reward moments */
+  --color-purple-strong: #684793;
+  --color-purple-soft: #efe9f8;
+
+  /* ---- Palette: warm neutrals (peach-cream — bridges coral and purple) ---- */
+  --color-bg: #fcf5f0;           /* warm rosy-cream page background */
+  --color-surface: #ffffff;      /* cards and raised surfaces */
+  --color-ink: #3a2823;          /* warm near-black text */
+  --color-ink-soft: #8c7268;     /* muted / secondary text */
+  --color-line: #f1e2d9;         /* hairline borders, empty states */
+
+  /* ---- Palette: category / shortcut chip tints ----
+   * Each tint sits between two anchors on the wheel, so every chip color
+   * is related to the triad and nothing clashes.
+   */
+  --tint-peach-bg: #fce8d6;      /* coral side */
+  --tint-peach-ink: #9a5b16;
+  --tint-berry-bg: #f9e1eb;      /* coral ↔ purple */
+  --tint-berry-ink: #ae3e6e;
+  --tint-lavender-bg: #ede6f8;   /* purple */
+  --tint-lavender-ink: #6c4fa8;
+  --tint-periwinkle-bg: #e4eafb; /* purple ↔ teal */
+  --tint-periwinkle-ink: #4a5cb0;
+  --tint-mint-bg: #def2e6;       /* teal side */
+  --tint-mint-ink: #1e7d58;
+  --tint-neutral-bg: #f4eae3;    /* warm sand */
+  --tint-neutral-ink: #70594f;
+
+  /* ---- Palette: dirtiness bands (SPEC §4 — Phase 1 decay UI reads these) ---- */
+  --status-fresh: #1d9e75;       /* the teal anchor */
+  --status-aging: #e5a93c;       /* warm honey */
+  --status-due: #e8842c;         /* coral's orange neighbor */
+  --status-overdue: #b73349;     /* deep raspberry — kept apart from rose coral */
+
+  /* ---- Typography: friendly rounded sans, two weights only ---- */
+  --font-sans: var(--font-nunito), "Nunito", ui-rounded, "Segoe UI",
+    system-ui, sans-serif;
+  --weight-regular: 500;
+  --weight-bold: 800;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+
+  /* ---- Spacing scale ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+  --space-8: 48px;
+
+  /* ---- Corner radii: rounded, friendly shapes ---- */
+  --radius-card: 12px;
+  --radius-button: 14px;
+  --radius-pill: 999px;
+
+  /* ---- Elevation (warm-tinted, soft) ---- */
+  --shadow-card: 0 2px 8px rgba(87, 55, 34, 0.08);
+  --shadow-raised: 0 8px 24px rgba(87, 55, 34, 0.14);
+
+  /* ---- Motion ---- */
+  --motion-fast: 130ms;   /* taps, hovers */
+  --motion-base: 220ms;   /* card transitions */
+  --motion-slow: 450ms;   /* celebration pops */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1); /* springy overshoot */
+
+  /* ---- Touch ---- */
+  --tap-target: 48px;     /* min height for one-handed phone taps */
+}
+
 * {
   box-sizing: border-box;
 }
 
+html {
+  font-family: var(--font-sans);
+}
+
 body {
-  color: #222;
-  background: #fff;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 button {
   cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-coral);
+  outline-offset: 2px;
+}
+
+/* Celebrations and transitions quiet down for reduced-motion users. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

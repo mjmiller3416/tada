@@ -151,9 +151,12 @@ It's a cleaning *coach*, not a to-do list. Picking a room or zone launches the s
 
 ### Visual direction — bright, playful, but not busy
 
-- **Primary action color: coral** (`#D85A30`). The main "go" button (e.g. "I have 15 minutes").
-- **Success / Done: teal-green** (`#1D9E75`).
-- **Category / shortcut chips:** soft, cheerful color-coded tints (light blue, purple, green, amber). Colorful and inviting, but restrained enough that the UI itself never adds to the overwhelm.
+- **The palette is a triad — three anchors, one job each** (chosen in Phase 0.5; tokens in `frontend/src/app/globals.css` hold the derived variants):
+  - **Primary action / "go": rose coral** (`#E15B54`). The main "go" button (e.g. "I have 15 minutes").
+  - **Success / Done: teal-green** (`#1D9E75`).
+  - **Celebration / reward: wisteria purple** (`#7E57B2`). Badges, streaks, confetti, and overlay accents (zones, campaigns) — so coral always means *go* and teal always means *done*.
+- **Category / shortcut chips:** soft, cheerful tints where every hue bridges two anchors on the color wheel — peach (coral side), berry (coral↔purple), lavender (purple), periwinkle (purple↔teal), mint (teal side), plus a warm sand neutral. Colorful and inviting, but restrained enough that the UI itself never adds to the overwhelm.
+- **Neutrals are a warm peach-cream** (background `#FCF5F0`, warm near-black ink) so all three anchors sit comfortably. The "overdue" dirtiness band is a deep raspberry (`#B73349`) rather than alarm red — urgent, in-family, never guilt-inducing.
 - Rounded, friendly shapes: cards ~12px radius, buttons ~14px, pills fully rounded. Generous whitespace. A friendly rounded sans-serif. Two font weights only.
 - **Large touch targets, one-handed phone use, minimal typing on the phone.** Heavy input (adding tasks, editing schedules) is a Chromebook activity.
 

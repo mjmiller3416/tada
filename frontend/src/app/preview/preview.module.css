@@ -1,0 +1,118 @@
+.intro {
+  margin: var(--space-2) 0 var(--space-4);
+  color: var(--color-ink-soft);
+}
+
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.hint {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+/* ---- Palette swatches ---- */
+
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--space-3);
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.swatchColor {
+  height: 44px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+}
+
+.swatchName {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+}
+
+/* ---- Typography samples ---- */
+
+.typeXl {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.2;
+}
+
+.typeBase {
+  margin: 0 0 var(--space-2);
+}
+
+.typeBold {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--weight-bold);
+}
+
+.typeSoft {
+  margin: 0;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
+.cardText {
+  margin: 0;
+}
+
+/* ---- Progress dots ---- */
+
+.dotsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.dotsLabel {
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+/* ---- Session complete demo ---- */
+
+.sessionDone {
+  text-align: center;
+}
+
+.sessionDoneEmoji {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.sessionDoneTitle {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.sessionDoneBody {
+  margin: 0 0 var(--space-4);
+  color: var(--color-ink-soft);
+}

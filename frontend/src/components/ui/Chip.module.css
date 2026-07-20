@@ -1,0 +1,63 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.tappable {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--motion-fast) var(--ease-pop);
+}
+
+.tappable:active {
+  transform: scale(0.94);
+}
+
+/* ---- Tones (each tint bridges two palette anchors) ---- */
+
+.peach {
+  background: var(--tint-peach-bg);
+  color: var(--tint-peach-ink);
+}
+
+.berry {
+  background: var(--tint-berry-bg);
+  color: var(--tint-berry-ink);
+}
+
+.lavender {
+  background: var(--tint-lavender-bg);
+  color: var(--tint-lavender-ink);
+}
+
+.periwinkle {
+  background: var(--tint-periwinkle-bg);
+  color: var(--tint-periwinkle-ink);
+}
+
+.mint {
+  background: var(--tint-mint-bg);
+  color: var(--tint-mint-ink);
+}
+
+.coral {
+  background: var(--color-coral-soft);
+  color: var(--color-coral-strong);
+}
+
+.teal {
+  background: var(--color-teal-soft);
+  color: var(--color-teal-strong);
+}
+
+.neutral {
+  background: var(--tint-neutral-bg);
+  color: var(--tint-neutral-ink);
+}

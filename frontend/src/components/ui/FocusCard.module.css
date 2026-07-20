@@ -1,0 +1,42 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: card-in var(--motion-base) var(--ease-standard);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.taskName {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.2;
+}
+
+.estimate {
+  margin: 0 0 var(--space-3);
+  color: var(--color-ink-soft);
+  font-size: var(--text-base);
+}
+
+/* Anchors the Burst pop over the Done button. */
+.doneWrap {
+  position: relative;
+}
