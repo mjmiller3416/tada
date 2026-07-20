@@ -1,0 +1,118 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(58, 40, 35, 0.35); /* --color-ink at low alpha */
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100dvh - var(--space-6));
+  overflow-y: auto;
+}
+
+@media (min-width: 640px) {
+  .overlay {
+    align-items: center;
+  }
+}
+
+.title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-coral);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.customDays {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.numberInput {
+  width: 90px;
+  text-align: center;
+}
+
+.twoUp {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.twoUp > * {
+  flex: 1;
+  min-width: 160px;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.error {
+  margin: 0;
+  text-align: center;
+  color: var(--status-overdue);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.deleteButton {
+  color: var(--status-overdue);
+}

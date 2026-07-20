@@ -1,0 +1,127 @@
+.page {
+  min-height: 100dvh;
+  background: var(--color-bg);
+  display: flex;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+}
+
+.column {
+  width: 100%;
+  max-width: 560px;
+}
+
+.stepCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.bigEmoji {
+  margin: 0;
+  font-size: 3rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  text-align: center;
+}
+
+.body {
+  margin: 0;
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2);
+}
+
+.typeButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  transition: transform var(--motion-fast) var(--ease-pop),
+    border-color var(--motion-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.typeButton:active {
+  transform: scale(0.96);
+  border-color: var(--color-coral);
+}
+
+.typeIcon {
+  font-size: var(--text-lg);
+}
+
+.pickedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pickedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-coral);
+}
+
+.toggleList {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  text-align: center;
+  color: var(--status-overdue);
+  font-size: var(--text-sm);
+}
+
+.quietLink {
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  padding: var(--space-2);
+}

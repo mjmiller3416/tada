@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, push
+from app.routers import auth, onboarding, push, rooms, sessions
+from app.routers import settings as settings_router
+from app.routers import tasks
 
 app = FastAPI(title="Tada API")
 
@@ -16,6 +18,11 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(push.router)
+app.include_router(rooms.router)
+app.include_router(tasks.router)
+app.include_router(sessions.router)
+app.include_router(settings_router.router)
+app.include_router(onboarding.router)
 
 
 @app.get("/health")

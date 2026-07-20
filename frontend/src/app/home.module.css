@@ -1,0 +1,120 @@
+.greeting {
+  margin-bottom: var(--space-4);
+}
+
+.hello {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+
+.subline {
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink-soft);
+}
+
+/* ---- Setup / caught-up cards ---- */
+
+.setupCard,
+.caughtUpCard {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.setupEmoji {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.setupTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.setupBody,
+.caughtUpText {
+  margin: 0;
+  color: var(--color-ink-soft);
+}
+
+/* ---- Hero ---- */
+
+.heroCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.heroLabel {
+  margin: 0;
+  font-weight: var(--weight-bold);
+}
+
+.minuteRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---- Energy filter ---- */
+
+.energyRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+/* ---- Focus list ---- */
+
+.focusList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.taskCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.taskTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.taskName {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.taskMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.taskActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.burstAnchor {
+  position: relative;
+  display: inline-flex;
+  flex: 1;
+}
+
+.burstAnchor > button {
+  flex: 1;
+}

@@ -7,16 +7,25 @@ from app.database import Base
 
 
 class Reminder(Base):
-    """Polled by the Railway cron service every minute (SPEC §2). Phase 0
-    scope only: `task_id` is deliberately omitted here since the Task table
-    doesn't exist until Phase 1 — the Phase 1 migration adds it additively,
-    per SPEC §3 / §8."""
+    """Polled by the Railway cron service every minute (SPEC §2). Two kinds
+    exist in Phase 1:
+
+    - The daily nudge: one per user, `recurrence_rule="daily"`, `task_id`
+      NULL. Its body is composed at send time from the current priority
+      ranking, and the cron advances `scheduled_for` after sending.
+    - Snooze reminders: one-shot rows with `task_id` set, created when a
+      task is snoozed ("defer the reminder", SPEC §6). Deactivated after
+      sending, or silently dropped if the task got done in the meantime.
+    """
 
     __tablename__ = "reminders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
     )
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)

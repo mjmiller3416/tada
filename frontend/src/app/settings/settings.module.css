@@ -1,0 +1,71 @@
+.savedNote {
+  text-align: right;
+  font-size: var(--text-sm);
+  color: var(--color-teal);
+  font-weight: var(--weight-bold);
+  min-height: 1.4em;
+  margin-bottom: var(--space-2);
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.help {
+  margin: calc(-1 * var(--space-3)) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+}
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  max-width: 220px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-coral);
+}

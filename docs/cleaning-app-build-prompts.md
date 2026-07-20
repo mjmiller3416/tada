@@ -43,7 +43,7 @@ Do NOT build any cleaning features yet — only the foundation above.
 
 ---
 
-## Phase 0.5 — Design foundation
+✅ ## Phase 0.5 — Design foundation
 
 ```
 Read SPEC.md, especially section 5 (design system). Build the design foundation BEFORE
@@ -71,7 +71,7 @@ folder. Match the bright, warm, no-guilt direction in SPEC section 5. Summarize 
 built when done.
 ```
 
-**Phase 0.5 is done when:** the design tokens exist as the single source of truth, the core React primitives render correctly on the preview page, and the look matches the bright/playful direction — so feature phases can compose them. (You can also restyle the Phase 0 login here.)
+✅ **Phase 0.5 is done when:** the design tokens exist as the single source of truth, the core React primitives render correctly on the preview page, and the look matches the bright/playful direction — so feature phases can compose them. (You can also restyle the Phase 0 login here.)
 
 ---
 

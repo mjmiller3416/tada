@@ -4,6 +4,7 @@ node_modules/
 out/
 next-env.d.ts
 npm-debug.log*
+*.tsbuildinfo
 
 # --- Python (backend/) ---
 __pycache__/

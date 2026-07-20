@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { enablePushNotifications } from "@/lib/push";
+import { Button } from "@/components/ui";
 
 export default function PushSubscribeButton() {
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">(
@@ -23,10 +24,23 @@ export default function PushSubscribeButton() {
 
   return (
     <div>
-      <button onClick={handleClick} disabled={status === "working"}>
-        {status === "done" ? "Notifications enabled" : "Enable notifications"}
-      </button>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      <Button
+        variant={status === "done" ? "secondary" : "primary"}
+        onClick={handleClick}
+        disabled={status === "working"}
+        fullWidth
+      >
+        {status === "done"
+          ? "Notifications enabled ✓"
+          : status === "working"
+            ? "One sec…"
+            : "Enable notifications"}
+      </Button>
+      {error && (
+        <p style={{ color: "var(--status-overdue)", fontSize: "var(--text-sm)" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,0 +1,86 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.roomCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.roomMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  color: var(--color-ink);
+  font-size: var(--text-base);
+  min-height: var(--tap-target);
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.roomName {
+  font-weight: var(--weight-bold);
+  font-size: var(--text-lg);
+}
+
+.roomMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.dueNote {
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.emptyCard {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.emptyEmoji {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-ink-soft);
+}
+
+.addForm {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-coral);
+}

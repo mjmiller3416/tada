@@ -1,0 +1,56 @@
+.summary {
+  margin-bottom: var(--space-3);
+}
+
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.emptyCard {
+  text-align: center;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quietRow {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.remove {
+  color: var(--status-overdue);
+}
+
+.renameForm {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-coral);
+}
