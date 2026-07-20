@@ -75,7 +75,9 @@ TaskSupply                  # many-to-many Task <-> Supply
 Supply
   id, name
   status: "in_stock" | "low" | "out"    # MANUAL only — never auto-decremented
+  last_pushed_at: timestamp (nullable)   # when last pushed to MealGenie's list (dedupe)
   created_at
+# No shopping-list entity in Tada — low/out supplies are pushed to MealGenie's list (see §6).
 
 CompletionLog               # history; feeds streaks, badges, and kid-completion notifications
   id, task_id -> Task
@@ -151,12 +153,9 @@ It's a cleaning *coach*, not a to-do list. Picking a room or zone launches the s
 
 ### Visual direction — bright, playful, but not busy
 
-- **The palette is a triad — three anchors, one job each** (chosen in Phase 0.5; tokens in `frontend/src/app/globals.css` hold the derived variants):
-  - **Primary action / "go": rose coral** (`#E15B54`). The main "go" button (e.g. "I have 15 minutes").
-  - **Success / Done: teal-green** (`#1D9E75`).
-  - **Celebration / reward: wisteria purple** (`#7E57B2`). Badges, streaks, confetti, and overlay accents (zones, campaigns) — so coral always means *go* and teal always means *done*.
-- **Category / shortcut chips:** soft, cheerful tints where every hue bridges two anchors on the color wheel — peach (coral side), berry (coral↔purple), lavender (purple), periwinkle (purple↔teal), mint (teal side), plus a warm sand neutral. Colorful and inviting, but restrained enough that the UI itself never adds to the overwhelm.
-- **Neutrals are a warm peach-cream** (background `#FCF5F0`, warm near-black ink) so all three anchors sit comfortably. The "overdue" dirtiness band is a deep raspberry (`#B73349`) rather than alarm red — urgent, in-family, never guilt-inducing.
+- **Primary action color: coral** (`#D85A30`). The main "go" button (e.g. "I have 15 minutes").
+- **Success / Done: teal-green** (`#1D9E75`).
+- **Category / shortcut chips:** soft, cheerful color-coded tints (light blue, purple, green, amber). Colorful and inviting, but restrained enough that the UI itself never adds to the overwhelm.
 - Rounded, friendly shapes: cards ~12px radius, buttons ~14px, pills fully rounded. Generous whitespace. A friendly rounded sans-serif. Two font weights only.
 - **Large touch targets, one-handed phone use, minimal typing on the phone.** Heavy input (adding tasks, editing schedules) is a Chromebook activity.
 
@@ -190,7 +189,7 @@ Most features are lenses or modes over the §3 model + §4 engine — not separa
 - **Energy filter.** Weight by `effort`: low-energy surfaces quick wins, deep-clean day surfaces big tasks. Stacks with the other two.
 - **Decay-aware snooze.** Defers the *reminder* (later today / tomorrow / a few days) **without** resetting `last_done_at` — the task keeps aging quietly and resurfaces, but she isn't nagged now and nothing is falsely marked done. No guilt language.
 
-**Supplies & shopping (Phase 2).** A small inventory: each supply is `in_stock` / `low` / `out`, set **manually** (one tap — no auto-decrement, which is guesswork that drifts). Tasks link to the supplies they use. When a task whose linked supply is `low`/`out` surfaces, flag it inline ("heads up — you're low on floor cleaner"). Everything `low`/`out` flows onto a **shopping list** she can check off.
+**Supplies (Phase 2).** A small inventory: each supply is `in_stock` / `low` / `out`, set **manually** (one tap — no auto-decrement, which is guesswork that drifts). Tasks link to the supplies they use. When a task whose linked supply is `low`/`out` surfaces, flag it inline ("heads up — you're low on floor cleaner"). **Tada has no shopping list of its own** — when a supply is marked `low`/`out`, Tada pushes it into **MealGenie's existing shopping list** (which the owner already uses and loves) via MealGenie's API. One-way push; deduped via `last_pushed_at` so nothing is added twice; each item tagged (source `tada`, category `household`) so supplies stay distinguishable from groceries. The MealGenie-side changes are specified in the build-prompts file.
 
 **Multi-user assign/claim (Phase 2).** Kids get their **own logins** (role `kid`) with **basic functionality**: see their assigned/claimable chores, check them off. **On completion, notify the owner** (via push). Tasks can be assigned to a member or left open to claim. **No rewards, points, or gamification for the kids' chores** — purely assignment + completion + notification.
 
@@ -218,7 +217,7 @@ Implement: a zone→room mapping (defaulting to the five above but fully editabl
 - **Phase 0 — Foundation.** Scaffold + deploy the empty shell; prove push + auth + cron end-to-end.
 - **Phase 0.5 — Design foundation.** Establish design tokens (the §5 palette/type/spacing/motion) as the single source of truth and a core set of React primitives (Button, Card, Chip, the focus/task card, app shell, celebration) on a preview page — before any feature UI, so every later phase composes the same components. Grow the library per phase from the tokens.
 - **Phase 1 — The spine.** Decay engine, rooms, both views, cadence, onboarding, daily focus, "I have X minutes," energy filter, snooze, reminders. A complete, useful app.
-- **Phase 2 — People, supplies, maintenance.** Kid logins + check-off + owner notifications, assign/claim, supply inventory + shopping list, maintenance category.
+- **Phase 2 — People, supplies, maintenance.** Kid logins + check-off + owner notifications, assign/claim, supply inventory (low/out items push into MealGenie's shopping list), maintenance category.
 - **Phase 3 — Overlays.** Guest/Chaos mode, seasonal campaigns, FlyLady zones.
 
 Build one phase at a time; verify each works before starting the next. Detailed per-phase prompts are in the build-prompts file.

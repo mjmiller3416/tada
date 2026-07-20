@@ -1,10 +1,11 @@
 # Tada — Build Prompts
+
 ---
 
-✅ ## Phase 0 — Foundation & scaffold
+## Phase 0 — Foundation & scaffold
 
 ```
-Read SPEC.md fully before starting. We're building Phase 0 only: the deployed
+Read cleaning-app-spec.md fully before starting. We're building Phase 0 only: the deployed
 empty shell that proves every risky integration works before any feature exists.
 
 Repository & deploy setup (do this first):
@@ -31,7 +32,7 @@ Build:
    Reminder table can be empty.
 6. Deploy all of it to Railway and confirm it runs end-to-end.
 
-Follow the coding conventions in SPEC §8. When done, give me: the file structure,
+Follow the coding conventions in cleaning-app-spec.md §8. When done, give me: the file structure,
 the env vars I need to set on Railway, and step-by-step instructions to (a) install
 the PWA on an Android phone, (b) grant notification permission, and (c) trigger and
 receive the test push.
@@ -39,21 +40,20 @@ receive the test push.
 Do NOT build any cleaning features yet — only the foundation above.
 ```
 
-✅ **Phase 0 is done when:** the app is deployed on Railway, the owner can log in, the PWA installs on the phone, and a manually triggered test push actually arrives on the phone. Then remove/disable the temporary test-push trigger.
+**Phase 0 is done when:** the app is deployed on Railway, the owner can log in, the PWA installs on the phone, and a manually triggered test push actually arrives on the phone. Then remove/disable the temporary test-push trigger.
 
 ---
 
-✅ ## Phase 0.5 — Design foundation
+## Phase 0.5 — Design foundation
 
 ```
-Read SPEC.md, especially section 5 (design system). Build the design foundation BEFORE
+Read cleaning-app-spec.md, especially section 5 (design system). Build the design foundation BEFORE
 any feature UI, so every later phase composes the same components and Tada looks cohesive
 throughout. Do NOT build feature screens here.
 
 Build:
 1. Design tokens as the single source of truth — CSS variables (or theme config): the
-   palette (rose coral #E15B54 for primary actions, teal #1D9E75 for Done/success,
-   wisteria purple #7E57B2 for celebration/reward moments, plus the
+   palette (coral #D85A30 for primary actions, teal #1D9E75 for Done/success, plus the
    cheerful category tints), typography (a friendly rounded sans, two weights), a spacing
    scale, corner radii (cards ~12px, buttons ~14px, pills fully rounded), and
    motion/transition values. Wire these into the PWA theming.
@@ -71,14 +71,14 @@ folder. Match the bright, warm, no-guilt direction in SPEC section 5. Summarize 
 built when done.
 ```
 
-✅ **Phase 0.5 is done when:** the design tokens exist as the single source of truth, the core React primitives render correctly on the preview page, and the look matches the bright/playful direction — so feature phases can compose them. (You can also restyle the Phase 0 login here.)
+**Phase 0.5 is done when:** the design tokens exist as the single source of truth, the core React primitives render correctly on the preview page, and the look matches the bright/playful direction — so feature phases can compose them. (You can also restyle the Phase 0 login here.)
 
 ---
 
 ## Phase 1 — The spine (core app)
 
 ```
-Read SPEC.md. Build Phase 1 on top of the Phase 0 foundation: the complete core app.
+Read cleaning-app-spec.md. Build Phase 1 on top of the Phase 0 foundation: the complete core app.
 
 Build:
 1. The full data model from SPEC §3 needed for core use: Room, Zone (schema only for
@@ -103,7 +103,7 @@ Build:
 7. Reminders: populate the Reminder table from task due-times / a daily nudge time in
    Settings, so the Phase 0 cron now actually sends real reminders.
 
-Apply the design system in SPEC §5 precisely: rose coral (#E15B54) primary actions, teal
+Apply the design system in SPEC §5 precisely: coral (#D85A30) primary actions, teal
 (#1D9E75) for Done, cheerful color-coded chips, rounded friendly shapes, warm
 first-name no-guilt copy. Phone = one-thing-at-a-time; Chromebook = full lists/editing.
 Follow SPEC §8 conventions and summarize what you built when done.
@@ -116,7 +116,7 @@ Follow SPEC §8 conventions and summarize what you built when done.
 ## Phase 2 — People, supplies, maintenance
 
 ```
-Read SPEC.md. Build Phase 2 on top of Phase 1.
+Read cleaning-app-spec.md. Build Phase 2 on top of Phase 1.
 
 Build:
 1. Multi-user (SPEC §6): kids get their own logins (role "kid") with basic
@@ -126,8 +126,13 @@ Build:
    the kids' chores. (The owner's own login and full functionality already exist.)
 2. Supplies (SPEC §6): a Supply inventory with manual status only (in_stock / low /
    out — never auto-decremented). Link tasks to the supplies they use. When a task
-   whose linked supply is low/out surfaces in a session, flag it inline. Anything
-   low/out flows onto a shopping list the owner can check off.
+   whose linked supply is low/out surfaces in a session, flag it inline. Tada has NO
+   shopping list of its own — when a supply is marked low/out, push it into MealGenie's
+   existing shopping list via MealGenie's API (base URL + shared API key from env vars).
+   One-way push only; dedupe with a last_pushed_at field so a supply isn't sent twice;
+   tag pushed items (source "tada", category "household") so they're distinguishable from
+   groceries. Build against the endpoint contract in the "MealGenie integration" section
+   below.
 3. Maintenance (SPEC §6): support category "maintenance" on tasks with long cadences,
    surfaced in their own section/filter so they don't clutter daily cleaning.
 
@@ -135,14 +140,42 @@ Keep the kid experience simple and role-restricted. Follow SPEC §5 (design/voic
 §8 (conventions). Summarize what you built when done.
 ```
 
-**Phase 2 is done when:** a kid can log in, check off a chore, and the owner gets a notification; supplies can be marked low/out and appear on a shopping list; maintenance tasks live in their own section.
+**Phase 2 is done when:** a kid can log in, check off a chore, and the owner gets a notification; supplies can be marked low/out and get pushed into MealGenie's shopping list; maintenance tasks live in their own section.
+
+---
+
+## MealGenie integration (do this in the MealGenie repo, alongside Tada's Phase 2)
+
+These changes live on the *MealGenie* side so Tada can push supplies into its shopping list. Coordinate with the in-flight shopping-list **sync refactor** — build against the post-refactor shape (that refactor may already add most of this).
+
+```
+Add an endpoint so a trusted first-party app (Tada) can add items to the shopping list.
+
+1. Endpoint: POST /shopping-list/items accepting { name, quantity?, source, category? }.
+   Follow the existing repository/service pattern — add a service method that upserts the
+   item; do not write to the table directly from the route.
+2. Auth: protect it with a shared API key checked from a request header (store the expected
+   key as an env var). App-to-app auth between two first-party apps — no OAuth needed.
+3. Idempotency: dedupe on the receiving end too — upsert by (name, source) or an external
+   id so repeated pushes never create duplicate rows.
+4. Tagging: store each item's source ("tada") and category ("household") so household
+   supplies can be grouped or labeled separately from groceries.
+5. List UI: if we want household supplies visually separated in the shopping-list view, add
+   the category as a section or a small tag; if mixing them in with groceries is fine, just
+   surfacing the source tag is enough.
+
+Set the SAME shared API key as an env var on both Railway services. Summarize what you
+built and give me the exact endpoint contract so the Tada side matches it.
+```
+
+**MealGenie side is done when:** the endpoint accepts an authenticated item, dedupes it, tags it with source/category, and a test push from Tada lands in MealGenie's shopping list.
 
 ---
 
 ## Phase 3 — Overlays
 
 ```
-Read SPEC.md. Build Phase 3 on top of Phase 2. These are opt-in overlays on the core —
+Read cleaning-app-spec.md. Build Phase 3 on top of Phase 2. These are opt-in overlays on the core —
 they must NOT replace the decay engine.
 
 Build:
