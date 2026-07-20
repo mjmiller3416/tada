@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.room import Room
 from app.models.user import User
-from app.routers.auth import get_current_user
+from app.routers.auth import require_owner
 from app.schemas.onboarding import OnboardingRequest, OnboardingResponse
 from app.services import reminder_service, starter_tasks
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 @router.post("", response_model=OnboardingResponse)
 def run_onboarding(
     payload: OnboardingRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> OnboardingResponse:
     """The onboarding wizard's generate step (SPEC §6): create the rooms

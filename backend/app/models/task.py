@@ -15,6 +15,11 @@ class Task(Base):
     `snoozed_until` powers the decay-aware snooze (SPEC §6): while set and
     in the future, the task is hidden from daily focus and sessions, but
     `last_done_at` is untouched so the task keeps aging quietly.
+
+    Assignment (Phase 2): `assignee_id` pins a task to one member;
+    `claimable` marks an unassigned task as "up for grabs" so kids can
+    claim it. A task assigned to someone else stays out of your own
+    doing-surfaces (it's delegated), but planning views show everything.
     """
 
     __tablename__ = "tasks"
@@ -43,6 +48,7 @@ class Task(Base):
     assignee_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    claimable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -51,3 +57,10 @@ class Task(Base):
     )
 
     room: Mapped["Room | None"] = relationship(back_populates="tasks")  # noqa: F821
+    # selectin so every surface that serializes tasks (focus, sessions,
+    # chores, planning lists) gets these without per-call-site loader
+    # options — no N+1s, and the inline supply flag is always available.
+    assignee: Mapped["User | None"] = relationship(lazy="selectin")  # noqa: F821
+    supplies: Mapped[list["Supply"]] = relationship(  # noqa: F821
+        secondary="task_supplies", back_populates="tasks", lazy="selectin"
+    )

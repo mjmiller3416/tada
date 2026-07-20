@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createTask,
   deleteTask,
+  getMembers,
+  getSupplies,
   updateTask,
+  type Category,
   type Effort,
+  type Member,
   type Room,
+  type Supply,
   type Task,
 } from "@/lib/api";
 import { CADENCE_PRESETS } from "@/lib/decay";
@@ -19,6 +24,8 @@ type TaskFormProps = {
   rooms: Room[];
   /** Preselected room for new tasks (e.g. adding from a room page). */
   defaultRoomId?: number | null;
+  /** Preselected category for new tasks (e.g. adding from the maintenance view). */
+  defaultCategory?: Category;
   /** Called with true when something changed and lists should refetch. */
   onClose: (changed: boolean) => void;
 };
@@ -32,7 +39,9 @@ function presetFor(days: number): string {
 
 /**
  * Add/edit a task (SPEC §6 "Cadence tiers + custom"): tier preset chips
- * with a custom day count, time estimate, effort, room, and notes.
+ * with a custom day count, time estimate, effort, room, and notes — plus
+ * the Phase 2 fields: category (cleaning vs maintenance), whose job it
+ * is (assign / leave up for grabs), and the supplies it uses.
  * Rendered as a full-screen overlay — heavy editing is a Chromebook
  * activity, but everything still works one-handed on the phone.
  */
@@ -40,11 +49,15 @@ export default function TaskForm({
   task,
   rooms,
   defaultRoomId = null,
+  defaultCategory = "cleaning",
   onClose,
 }: TaskFormProps) {
   const [name, setName] = useState(task?.name ?? "");
   const [roomId, setRoomId] = useState<number | null>(
     task ? task.room_id : defaultRoomId,
+  );
+  const [category, setCategory] = useState<Category>(
+    task?.category ?? defaultCategory,
   );
   const [cadenceChoice, setCadenceChoice] = useState<string>(
     presetFor(task?.cadence_days ?? 7),
@@ -56,10 +69,29 @@ export default function TaskForm({
     String(task?.estimated_minutes ?? 10),
   );
   const [effort, setEffort] = useState<Effort>(task?.effort ?? "quick");
+  const [assigneeId, setAssigneeId] = useState<number | null>(
+    task?.assignee_id ?? null,
+  );
+  const [claimable, setClaimable] = useState(task?.claimable ?? false);
+  const [supplyIds, setSupplyIds] = useState<number[]>(
+    task ? task.supplies.map((s) => s.id) : [],
+  );
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [isActive, setIsActive] = useState(task?.is_active ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [members, setMembers] = useState<Member[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+
+  useEffect(() => {
+    getMembers()
+      .then(setMembers)
+      .catch(() => {});
+    getSupplies()
+      .then(setSupplies)
+      .catch(() => {});
+  }, []);
 
   const cadenceDays =
     cadenceChoice === CUSTOM ? parseInt(customDays, 10) : parseInt(cadenceChoice, 10);
@@ -71,6 +103,12 @@ export default function TaskForm({
     Number.isFinite(estimatedMinutes) &&
     estimatedMinutes >= 1;
 
+  function toggleSupply(id: number) {
+    setSupplyIds((current) =>
+      current.includes(id) ? current.filter((s) => s !== id) : [...current, id],
+    );
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!valid || saving) return;
@@ -81,9 +119,15 @@ export default function TaskForm({
         await updateTask(task.id, {
           name: name.trim(),
           ...(roomId != null ? { room_id: roomId } : { clear_room: true }),
+          category,
           cadence_days: cadenceDays,
           estimated_minutes: estimatedMinutes,
           effort,
+          ...(assigneeId != null
+            ? { assignee_id: assigneeId }
+            : { clear_assignee: true }),
+          claimable,
+          supply_ids: supplyIds,
           notes: notes.trim() || null,
           is_active: isActive,
         });
@@ -91,9 +135,13 @@ export default function TaskForm({
         await createTask({
           name: name.trim(),
           room_id: roomId,
+          category,
           cadence_days: cadenceDays,
           estimated_minutes: estimatedMinutes,
           effort,
+          assignee_id: assigneeId,
+          claimable,
+          supply_ids: supplyIds,
           notes: notes.trim() || null,
         });
       }
@@ -116,6 +164,8 @@ export default function TaskForm({
       setSaving(false);
     }
   }
+
+  const kids = members.filter((m) => m.role === "kid");
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true">
@@ -152,6 +202,24 @@ export default function TaskForm({
               ))}
             </select>
           </label>
+
+          <div className={styles.field}>
+            <span className={styles.label}>What kind of task?</span>
+            <div className={styles.chips}>
+              <Chip
+                tone={category === "cleaning" ? "coral" : "neutral"}
+                onClick={() => setCategory("cleaning")}
+              >
+                Cleaning
+              </Chip>
+              <Chip
+                tone={category === "maintenance" ? "coral" : "neutral"}
+                onClick={() => setCategory("maintenance")}
+              >
+                Maintenance
+              </Chip>
+            </div>
+          </div>
 
           <div className={styles.field}>
             <span className={styles.label}>How often does it need doing?</span>
@@ -222,6 +290,55 @@ export default function TaskForm({
               </div>
             </div>
           </div>
+
+          {members.length > 1 && (
+            <div className={styles.field}>
+              <span className={styles.label}>Whose job is it?</span>
+              <select
+                value={assigneeId ?? ""}
+                onChange={(e) =>
+                  setAssigneeId(
+                    e.target.value === "" ? null : Number(e.target.value),
+                  )
+                }
+                className={styles.input}
+              >
+                <option value="">Nobody in particular</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+              {assigneeId == null && kids.length > 0 && (
+                <label className={styles.toggleRow}>
+                  <input
+                    type="checkbox"
+                    checked={claimable}
+                    onChange={(e) => setClaimable(e.target.checked)}
+                  />
+                  Let the kids claim this one
+                </label>
+              )}
+            </div>
+          )}
+
+          {supplies.length > 0 && (
+            <div className={styles.field}>
+              <span className={styles.label}>Supplies it uses</span>
+              <div className={styles.chips}>
+                {supplies.map((supply) => (
+                  <Chip
+                    key={supply.id}
+                    tone={supplyIds.includes(supply.id) ? "teal" : "neutral"}
+                    onClick={() => toggleSupply(supply.id)}
+                  >
+                    {supply.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className={styles.field}>
             <span className={styles.label}>Notes (optional)</span>

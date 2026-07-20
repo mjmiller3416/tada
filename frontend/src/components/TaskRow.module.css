@@ -43,3 +43,34 @@
   font-size: var(--text-sm);
   color: var(--color-ink-soft);
 }
+
+/* Row + optional check-off button (maintenance lists). */
+.rowWrap {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.rowWrap > .row {
+  flex: 1;
+  min-width: 0;
+}
+
+.doneButton {
+  flex: none;
+  width: var(--tap-target);
+  min-height: var(--tap-target);
+  border: none;
+  border-radius: var(--radius-button);
+  background: var(--color-teal);
+  color: #fff;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--motion-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.doneButton:active {
+  transform: scale(0.95);
+}

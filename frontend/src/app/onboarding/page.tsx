@@ -35,7 +35,7 @@ type PickedRoom = OnboardingRoomInput & { key: number };
 
 export default function OnboardingPage() {
   return (
-    <AuthGate>{(user) => <Wizard firstName={user.name.split(" ")[0]} />}</AuthGate>
+    <AuthGate ownerOnly>{(user) => <Wizard firstName={user.name.split(" ")[0]} />}</AuthGate>
   );
 }
 

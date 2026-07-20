@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
 import { buildSession, completeTask, type Effort, type Task } from "@/lib/api";
 import { roomTone } from "@/lib/decay";
+import { supplyNote } from "@/lib/supplies";
 import { Button, Card, Confetti, FocusCard } from "@/components/ui";
 import styles from "./session.module.css";
 
@@ -17,7 +18,7 @@ import styles from "./session.module.css";
  */
 export default function SessionPage() {
   return (
-    <AuthGate>
+    <AuthGate ownerOnly>
       {() => (
         <Suspense fallback={null}>
           <SessionScreen />
@@ -123,6 +124,7 @@ function SessionScreen() {
             estimatedMinutes={current.estimated_minutes}
             roomName={current.room_name ?? undefined}
             roomTone={roomTone(current.room_id)}
+            supplyNote={supplyNote(current) ?? undefined}
             current={index + 1}
             total={tasks.length}
             onDone={() => handleDone(current)}

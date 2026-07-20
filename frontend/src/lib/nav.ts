@@ -5,5 +5,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Today", icon: "🏠" },
   { href: "/rooms", label: "Rooms", icon: "🛋️" },
   { href: "/tasks", label: "Tasks", icon: "🧺" },
+  { href: "/supplies", label: "Supplies", icon: "🧴" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];

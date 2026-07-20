@@ -17,7 +17,7 @@ import styles from "./rooms.module.css";
  * straight into a room-scoped focus session.
  */
 export default function RoomsPage() {
-  return <AuthGate>{() => <RoomsScreen />}</AuthGate>;
+  return <AuthGate ownerOnly>{() => <RoomsScreen />}</AuthGate>;
 }
 
 function RoomsScreen() {

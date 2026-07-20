@@ -42,13 +42,22 @@ def get_current_user(
     return user
 
 
+def require_owner(current_user: User = Depends(get_current_user)) -> User:
+    """Gate for owner-only surfaces (planning, settings, household,
+    supplies). Kids get the deliberately small chores surface (SPEC §6:
+    'basic functionality only')."""
+    if current_user.role != "owner":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Owner only")
+    return current_user
+
+
 @router.post("/login", response_model=CurrentUserResponse)
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)) -> User:
-    # Phase 0 is single-owner: the PIN is checked against every owner
-    # account (in practice, exactly one). Phase 2 adds kid logins alongside
-    # this same flow.
-    owners = db.scalars(select(User).where(User.role == "owner")).all()
-    matched = next((u for u in owners if verify_pin(payload.pin, u.password_hash)), None)
+    # One shared login flow for everyone: the PIN is checked against every
+    # user. PINs are kept unique across users (enforced when members are
+    # created/updated), so a match identifies exactly one person.
+    users = db.scalars(select(User)).all()
+    matched = next((u for u in users if verify_pin(payload.pin, u.password_hash)), None)
 
     if matched is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect PIN")

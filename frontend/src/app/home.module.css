@@ -103,6 +103,16 @@
   color: var(--color-ink-soft);
 }
 
+/* The inline "you're low on X" flag — informative, never alarming. */
+.supplyNote {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--tint-peach-ink);
+  background: var(--tint-peach-bg);
+  border-radius: var(--radius-card);
+}
+
 .taskActions {
   display: flex;
   align-items: center;

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
-from app.routers.auth import get_current_user
+from app.routers.auth import require_owner
 from app.schemas.settings import SettingsRead, SettingsUpdate
 from app.services import reminder_service, settings_service
 
@@ -21,7 +21,7 @@ def _to_read(values: dict[str, str]) -> SettingsRead:
 
 @router.get("", response_model=SettingsRead)
 def get_settings(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> SettingsRead:
     return _to_read(settings_service.get_settings(db, current_user.id))
@@ -30,7 +30,7 @@ def get_settings(
 @router.put("", response_model=SettingsRead)
 def update_settings(
     payload: SettingsUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> SettingsRead:
     # None = leave untouched. daily_nudge_time="" is meaningful: nudge off.

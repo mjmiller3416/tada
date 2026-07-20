@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
 import DirtinessDot from "@/components/DirtinessDot";
+import KidHome from "@/components/KidHome";
 import SnoozeMenu from "@/components/SnoozeMenu";
 import {
   completeTask,
@@ -17,6 +18,7 @@ import {
   type Task,
 } from "@/lib/api";
 import { roomTone } from "@/lib/decay";
+import { supplyNote } from "@/lib/supplies";
 import { NAV_ITEMS } from "@/lib/nav";
 import { AppShell, Burst, Button, Card, Chip } from "@/components/ui";
 import styles from "./home.module.css";
@@ -30,11 +32,20 @@ type EffortFilter = Effort | "all";
  * The daily focus home screen (SPEC §6): a calm top-1..3, the "I have X
  * minutes" launcher, the energy filter, and decay-aware snooze. The
  * backlog lives one tap away in Rooms/Tasks — never here.
+ *
+ * Kids land here too, but get their own small surface (Phase 2): just
+ * their chores and what's up for grabs.
  */
 export default function HomePage() {
   return (
     <AuthGate>
-      {(user) => <HomeScreen firstName={user.name.split(" ")[0]} />}
+      {(user) =>
+        user.role === "kid" ? (
+          <KidHome firstName={user.name.split(" ")[0]} />
+        ) : (
+          <HomeScreen firstName={user.name.split(" ")[0]} />
+        )
+      }
     </AuthGate>
   );
 }
@@ -182,6 +193,9 @@ function HomeScreen({ firstName }: { firstName: string }) {
                     )}
                   </div>
                   <p className={styles.taskMeta}>about {task.estimated_minutes} min</p>
+                  {supplyNote(task) && (
+                    <p className={styles.supplyNote}>🧴 {supplyNote(task)}</p>
+                  )}
 
                   {snoozingId === task.id ? (
                     <SnoozeMenu

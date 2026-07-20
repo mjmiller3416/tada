@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
+import HouseholdSection from "@/components/HouseholdSection";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { getSettings, logout, updateSettings, type Settings } from "@/lib/api";
 import { NAV_ITEMS } from "@/lib/nav";
@@ -28,7 +29,7 @@ const TIMEZONES: { value: string; label: string }[] = [
  * you tap — no form to submit.
  */
 export default function SettingsPage() {
-  return <AuthGate>{() => <SettingsScreen />}</AuthGate>;
+  return <AuthGate ownerOnly>{() => <SettingsScreen />}</AuthGate>;
 }
 
 function SettingsScreen() {
@@ -161,6 +162,8 @@ function SettingsScreen() {
             </select>
           </div>
         </Card>
+
+        <HouseholdSection />
 
         <Card className={styles.section}>
           <h2 className={styles.heading}>Notifications on this device</h2>

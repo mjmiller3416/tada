@@ -1,0 +1,96 @@
+.greeting {
+  margin-bottom: var(--space-4);
+}
+
+.hello {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+
+.subline {
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink-soft);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.sectionHint {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.choreCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.choreTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.choreName {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.choreMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.choreActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.burstAnchor {
+  position: relative;
+  display: inline-flex;
+  flex: 1;
+}
+
+.burstAnchor > button {
+  flex: 1;
+}
+
+.emptyCard {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.emptyEmoji {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-ink-soft);
+}
+
+.logout {
+  margin-top: var(--space-4);
+}

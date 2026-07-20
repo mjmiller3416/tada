@@ -170,6 +170,21 @@ built and give me the exact endpoint contract so the Tada side matches it.
 
 **MealGenie side is done when:** the endpoint accepts an authenticated item, dedupes it, tags it with source/category, and a test push from Tada lands in MealGenie's shopping list.
 
+**As built (the contract Tada's `services/mealgenie.py` targets):**
+
+```
+POST {MEALGENIE_API_URL}/api/shopping/external/items
+Header: X-API-Key: <shared secret>          # MealGenie env: INTEGRATION_API_KEY
+Body:   { "name": str, "quantity"?: number, "unit"?: str,
+          "source": "tada", "category": "household" }
+→ 201 (inserted) or 200 (updated existing); upsert keyed on (name, source).
+Items land on the MealGenie account set by INTEGRATION_USER_ID.
+```
+
+Tada env vars: `MEALGENIE_API_URL` = MealGenie backend origin (no trailing
+slash), `MEALGENIE_API_KEY` = the same value as MealGenie's
+`INTEGRATION_API_KEY`.
+
 ---
 
 ## Phase 3 — Overlays

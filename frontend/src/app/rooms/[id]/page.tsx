@@ -24,7 +24,7 @@ import styles from "./room-detail.module.css";
  * management (rename / remove).
  */
 export default function RoomDetailPage() {
-  return <AuthGate>{() => <RoomDetailScreen />}</AuthGate>;
+  return <AuthGate ownerOnly>{() => <RoomDetailScreen />}</AuthGate>;
 }
 
 function RoomDetailScreen() {

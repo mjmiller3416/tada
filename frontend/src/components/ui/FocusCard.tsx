@@ -17,6 +17,8 @@ type FocusCardProps = {
   /** Room tag shown as a chip; omit for room-less tasks. */
   roomName?: string;
   roomTone?: ChipTone;
+  /** Inline supply flag ("heads up — you're low on…"); omit when stocked. */
+  supplyNote?: string;
   /** 1-based position in the session, for the small progress signal. */
   current: number;
   total: number;
@@ -40,6 +42,7 @@ export default function FocusCard({
   estimatedMinutes,
   roomName,
   roomTone = "periwinkle",
+  supplyNote,
   current,
   total,
   onDone,
@@ -72,6 +75,7 @@ export default function FocusCard({
 
       <h2 className={styles.taskName}>{taskName}</h2>
       <p className={styles.estimate}>about {estimatedMinutes} min</p>
+      {supplyNote && <p className={styles.supplyNote}>🧴 {supplyNote}</p>}
 
       <div className={styles.doneWrap}>
         <Burst play={celebrating} />

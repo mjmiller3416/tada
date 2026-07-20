@@ -21,27 +21,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models.push_subscription import PushSubscription
 from app.models.reminder import Reminder
 from app.models.task import Task
 from app.models.user import User
 from app.services import reminder_service
-from app.services.push_service import send_push
+from app.services.push_service import push_to_user
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("cron.send_reminders")
-
-
-def _send_to_user(db: Session, user_id: int, title: str, body: str) -> int:
-    """Push to every subscription (phone + Chromebook) the user has."""
-    subscriptions = db.scalars(
-        select(PushSubscription).where(PushSubscription.user_id == user_id)
-    ).all()
-    sent = 0
-    for subscription in subscriptions:
-        if send_push(subscription, title=title, body=body, db=db):
-            sent += 1
-    return sent
 
 
 def _process(db: Session, reminder: Reminder, now: datetime) -> None:
@@ -61,7 +48,7 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> None:
             reminder.active = False
             logger.info("Reminder %d dropped (task done or gone)", reminder.id)
             return
-        _send_to_user(db, user.id, reminder.title, reminder.body)
+        push_to_user(db, user.id, reminder.title, reminder.body)
         reminder.last_sent_at = now
         reminder.active = False
         return
@@ -69,13 +56,13 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> None:
     if reminder.recurrence_rule == reminder_service.DAILY_RULE:
         # Daily nudge: decay-aware content, then roll to tomorrow.
         title, body = reminder_service.compose_daily_nudge(db, user)
-        _send_to_user(db, user.id, title, body)
+        push_to_user(db, user.id, title, body)
         reminder.last_sent_at = now
         reminder_service.advance_daily_nudge(db, reminder, user)
         return
 
     # Plain one-shot reminder.
-    _send_to_user(db, user.id, reminder.title, reminder.body)
+    push_to_user(db, user.id, reminder.title, reminder.body)
     reminder.last_sent_at = now
     reminder.active = False
 

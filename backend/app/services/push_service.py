@@ -2,10 +2,12 @@ import json
 import logging
 
 from pywebpush import WebPushException, webpush
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.push_subscription import PushSubscription
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -36,3 +38,24 @@ def send_push(subscription: PushSubscription, title: str, body: str, db: Session
         else:
             logger.error("Push send failed: %s", exc)
         return False
+
+
+def push_to_user(db: Session, user_id: int, title: str, body: str) -> int:
+    """Push to every subscription (phone + Chromebook) a user has.
+    Returns how many sends succeeded."""
+    subscriptions = db.scalars(
+        select(PushSubscription).where(PushSubscription.user_id == user_id)
+    ).all()
+    return sum(
+        1
+        for subscription in subscriptions
+        if send_push(subscription, title=title, body=body, db=db)
+    )
+
+
+def notify_owners(db: Session, title: str, body: str) -> None:
+    """Notify every owner-role user (in practice, exactly one) — used when
+    a kid checks off a chore (SPEC §6 multi-user)."""
+    owner_ids = db.scalars(select(User.id).where(User.role == "owner")).all()
+    for owner_id in owner_ids:
+        push_to_user(db, owner_id, title, body)

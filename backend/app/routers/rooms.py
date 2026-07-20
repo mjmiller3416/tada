@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.room import Room
 from app.models.task import Task
 from app.models.user import User
-from app.routers.auth import get_current_user
+from app.routers.auth import require_owner
 from app.schemas.rooms import RoomCreate, RoomRead, RoomUpdate
 from app.services import scheduling
 
@@ -35,7 +35,7 @@ def _room_to_read(room: Room, tasks: list[Task]) -> RoomRead:
 
 @router.get("", response_model=list[RoomRead])
 def list_rooms(
-    _: User = Depends(get_current_user), db: Session = Depends(get_db)
+    _: User = Depends(require_owner), db: Session = Depends(get_db)
 ) -> list[RoomRead]:
     rooms = db.scalars(select(Room).order_by(Room.sort_order, Room.id)).all()
     tasks = db.scalars(select(Task).where(Task.room_id.is_not(None))).all()
@@ -48,7 +48,7 @@ def list_rooms(
 @router.post("", response_model=RoomRead, status_code=status.HTTP_201_CREATED)
 def create_room(
     payload: RoomCreate,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> RoomRead:
     next_order = db.scalar(select(func.coalesce(func.max(Room.sort_order), -1))) + 1
@@ -63,7 +63,7 @@ def create_room(
 def update_room(
     room_id: int,
     payload: RoomUpdate,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> RoomRead:
     room = db.get(Room, room_id)
@@ -81,7 +81,7 @@ def update_room(
 @router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_room(
     room_id: int,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> None:
     """Deletes the room only — its tasks stay (room_id set NULL by the FK)

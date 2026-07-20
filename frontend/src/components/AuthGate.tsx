@@ -13,10 +13,16 @@ type State =
  * Checks the session client-side (not via Next.js middleware) because the
  * session cookie belongs to the backend's origin — a different Railway
  * service — and is never visible to the frontend server.
+ *
+ * `ownerOnly` marks the planning/settings surfaces: a kid landing there
+ * is quietly sent home to their chores (the backend enforces the same
+ * rule on the API).
  */
 export default function AuthGate({
+  ownerOnly = false,
   children,
 }: {
+  ownerOnly?: boolean;
   children: (user: CurrentUser) => React.ReactNode;
 }) {
   const router = useRouter();
@@ -36,13 +42,18 @@ export default function AuthGate({
     };
   }, []);
 
+  const kidBlocked =
+    ownerOnly && state.status === "authenticated" && state.user.role !== "owner";
+
   useEffect(() => {
     if (state.status === "unauthenticated") {
       router.replace("/login");
+    } else if (kidBlocked) {
+      router.replace("/");
     }
-  }, [state.status, router]);
+  }, [state.status, kidBlocked, router]);
 
-  if (state.status !== "authenticated") {
+  if (state.status !== "authenticated" || kidBlocked) {
     return null;
   }
 

@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.room import Room
+from app.models.supply import Supply
 from app.models.task import Task
 from app.models.user import User
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, require_owner
 from app.schemas.tasks import (
     CompleteRequest,
     SnoozeRequest,
@@ -16,6 +17,7 @@ from app.schemas.tasks import (
     task_to_read,
 )
 from app.services import reminder_service, scheduling
+from app.services.push_service import notify_owners
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -34,17 +36,31 @@ def _check_room(db: Session, room_id: int | None) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Room not found")
 
 
+def _check_assignee(db: Session, assignee_id: int | None) -> None:
+    if assignee_id is not None and db.get(User, assignee_id) is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Member not found")
+
+
+def _fetch_supplies(db: Session, supply_ids: list[int]) -> list[Supply]:
+    supplies = list(db.scalars(select(Supply).where(Supply.id.in_(supply_ids))).all())
+    if len(supplies) != len(set(supply_ids)):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Supply not found")
+    return supplies
+
+
 @router.get("", response_model=list[TaskRead])
 def list_tasks(
     room_id: int | None = None,
     effort: str | None = None,
+    category: str | None = None,
     include_inactive: bool = False,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> list[TaskRead]:
     """The global/task planning view (SPEC §6): the flat list, dirtiest
     first. Fresh and snoozed tasks are included here — planning shows
-    everything; only the *doing* surfaces filter them out."""
+    everything; only the *doing* surfaces filter them out. The category
+    param gives maintenance its own section without cluttering cleaning."""
     query = select(Task).options(joinedload(Task.room))
     if not include_inactive:
         query = query.where(Task.is_active.is_(True))
@@ -52,6 +68,8 @@ def list_tasks(
         query = query.where(Task.room_id == room_id)
     if effort in ("quick", "deep"):
         query = query.where(Task.effort == effort)
+    if category in ("cleaning", "maintenance"):
+        query = query.where(Task.category == category)
 
     tasks = scheduling.rank_tasks(list(db.scalars(query).all()))
     return [task_to_read(task) for task in tasks]
@@ -60,19 +78,25 @@ def list_tasks(
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 def create_task(
     payload: TaskCreate,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> TaskRead:
     _check_room(db, payload.room_id)
+    _check_assignee(db, payload.assignee_id)
     task = Task(
         name=payload.name,
         room_id=payload.room_id,
+        category=payload.category,
         cadence_days=payload.cadence_days,
         estimated_minutes=payload.estimated_minutes,
         effort=payload.effort,
         guest_facing=payload.guest_facing,
+        assignee_id=payload.assignee_id,
+        claimable=payload.claimable,
         notes=payload.notes,
     )
+    if payload.supply_ids:
+        task.supplies = _fetch_supplies(db, payload.supply_ids)
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -83,7 +107,7 @@ def create_task(
 def update_task(
     task_id: int,
     payload: TaskUpdate,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> TaskRead:
     task = _get_task(db, task_id)
@@ -95,6 +119,8 @@ def update_task(
     elif payload.room_id is not None:
         _check_room(db, payload.room_id)
         task.room_id = payload.room_id
+    if payload.category is not None:
+        task.category = payload.category
     if payload.cadence_days is not None:
         task.cadence_days = payload.cadence_days
     if payload.estimated_minutes is not None:
@@ -103,6 +129,15 @@ def update_task(
         task.effort = payload.effort
     if payload.guest_facing is not None:
         task.guest_facing = payload.guest_facing
+    if payload.clear_assignee:
+        task.assignee_id = None
+    elif payload.assignee_id is not None:
+        _check_assignee(db, payload.assignee_id)
+        task.assignee_id = payload.assignee_id
+    if payload.claimable is not None:
+        task.claimable = payload.claimable
+    if payload.supply_ids is not None:
+        task.supplies = _fetch_supplies(db, payload.supply_ids)
     if payload.notes is not None:
         task.notes = payload.notes or None
     if payload.is_active is not None:
@@ -116,7 +151,7 @@ def update_task(
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(
     task_id: int,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> None:
     """Hard delete (history goes with it via cascade). The gentler option
@@ -124,6 +159,17 @@ def delete_task(
     task = _get_task(db, task_id)
     db.delete(task)
     db.commit()
+
+
+def _can_complete(task: Task, user: User) -> bool:
+    """The owner can complete anything. A kid can check off their own
+    chores, or an unassigned one that was left open to claim (SPEC §6:
+    'see their assigned/claimable chores and check them off')."""
+    if user.role == "owner":
+        return True
+    if task.assignee_id == user.id:
+        return True
+    return task.claimable and task.assignee_id is None
 
 
 @router.post("/{task_id}/complete", response_model=TaskRead)
@@ -135,11 +181,43 @@ def complete_task(
 ) -> TaskRead:
     """Done! Resets the decay curve and writes the CompletionLog (SPEC §4).
     Any pending snooze reminder is dropped so she's never nudged about
-    finished work."""
+    finished work. A kid's completion notifies the owner (SPEC §6)."""
     task = _get_task(db, task_id)
+    if not _can_complete(task, current_user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "That one isn't yours to check off")
+
     scheduling.complete_task(db, task, current_user, payload.source)
     reminder_service.clear_task_reminders(db, task.id)
     db.commit()
+
+    if current_user.role == "kid":
+        # After the commit, so the completion is durable no matter what
+        # the push service does. Positive-only copy — this is a brag, not
+        # an audit (SPEC §5/§6: notification, no gamification).
+        first_name = current_user.name.split()[0]
+        where = f" in the {task.room.name.lower()}" if task.room else ""
+        notify_owners(db, "Ta-da! 🎉", f"{first_name} just checked off {task.name}{where}.")
+
+    db.refresh(task)
+    return task_to_read(task)
+
+
+@router.post("/{task_id}/claim", response_model=TaskRead)
+def claim_task(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TaskRead:
+    """Claim an up-for-grabs chore (SPEC §6: 'assigned to a member or left
+    open to claim') — it becomes yours so nobody doubles up on it."""
+    task = _get_task(db, task_id)
+    if task.assignee_id == current_user.id:
+        pass  # already theirs — claiming twice is harmless
+    elif not task.is_active or not task.claimable or task.assignee_id is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That one's already spoken for")
+    else:
+        task.assignee_id = current_user.id
+        db.commit()
     db.refresh(task)
     return task_to_read(task)
 
@@ -148,7 +226,7 @@ def complete_task(
 def snooze_task(
     task_id: int,
     payload: SnoozeRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> TaskRead:
     """Decay-aware snooze (SPEC §6): hides the task from doing-surfaces

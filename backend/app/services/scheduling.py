@@ -127,6 +127,7 @@ def rank_tasks(tasks: list[Task], now: datetime | None = None) -> list[Task]:
 def candidate_tasks(
     db: Session,
     *,
+    for_user_id: int | None = None,
     room_id: int | None = None,
     effort: str | None = None,
     now: datetime | None = None,
@@ -135,13 +136,21 @@ def candidate_tasks(
 
     Fresh tasks (ratio < 0.5) are excluded: the app guides toward what
     actually needs doing, and when nothing does it celebrates instead of
-    inventing work — that calm is part of the no-guilt design."""
+    inventing work — that calm is part of the no-guilt design.
+
+    With `for_user_id` set (Phase 2), tasks assigned to a *different*
+    member are excluded — delegated work shouldn't nag the owner. Her own
+    and unassigned tasks (claimable or not) still surface."""
     now = now or _utcnow()
     query = (
         select(Task)
         .options(joinedload(Task.room))
         .where(Task.is_active.is_(True), Task.category == "cleaning")
     )
+    if for_user_id is not None:
+        query = query.where(
+            (Task.assignee_id.is_(None)) | (Task.assignee_id == for_user_id)
+        )
     if room_id is not None:
         query = query.where(Task.room_id == room_id)
     if effort in ("quick", "deep"):
@@ -160,19 +169,21 @@ def daily_focus(
     db: Session,
     *,
     limit: int,
+    for_user_id: int | None = None,
     effort: str | None = None,
     now: datetime | None = None,
 ) -> list[Task]:
     """The calm home screen (SPEC §6): the top `limit` tasks by priority —
     never a wall. An empty result means the home is genuinely in good
     shape and the UI should say so warmly."""
-    return candidate_tasks(db, effort=effort, now=now)[:limit]
+    return candidate_tasks(db, for_user_id=for_user_id, effort=effort, now=now)[:limit]
 
 
 def build_session(
     db: Session,
     *,
     minutes: int | None = None,
+    for_user_id: int | None = None,
     room_id: int | None = None,
     effort: str | None = None,
     now: datetime | None = None,
@@ -185,7 +196,9 @@ def build_session(
     (picking a room): the room's non-fresh tasks in priority order.
     Always capped at MAX_SESSION_TASKS — it's a coached sprint, not a dump.
     """
-    candidates = candidate_tasks(db, room_id=room_id, effort=effort, now=now)
+    candidates = candidate_tasks(
+        db, for_user_id=for_user_id, room_id=room_id, effort=effort, now=now
+    )
 
     if minutes is None:
         return candidates[:MAX_SESSION_TASKS]
@@ -199,6 +212,34 @@ def build_session(
             picked.append(task)
             remaining -= task.estimated_minutes
     return picked
+
+
+def chores_for_user(
+    db: Session, user_id: int, now: datetime | None = None
+) -> tuple[list[Task], list[Task]]:
+    """The kid surface (SPEC §6 multi-user): (my chores, up for grabs),
+    each priority-ranked.
+
+    "My chores" = active tasks assigned to this member; "up for grabs" =
+    active unassigned tasks the owner marked claimable. The same non-fresh
+    gate as every doing-surface applies, so a chore disappears once done
+    and quietly returns when it needs doing again — same decay engine, no
+    separate chore system. Assignment is explicit, so category isn't
+    filtered here (an assigned maintenance job is still a chore)."""
+    now = now or _utcnow()
+    tasks = db.scalars(
+        select(Task).options(joinedload(Task.room)).where(Task.is_active.is_(True))
+    ).all()
+    eligible = [
+        t
+        for t in tasks
+        if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
+    ]
+    mine = rank_tasks([t for t in eligible if t.assignee_id == user_id], now)
+    up_for_grabs = rank_tasks(
+        [t for t in eligible if t.assignee_id is None and t.claimable], now
+    )
+    return mine, up_for_grabs
 
 
 def room_aggregate_ratio(tasks: list[Task], now: datetime | None = None) -> float | None:

@@ -80,14 +80,22 @@ export function subscribeToPush(subscription: PushSubscriptionPayload) {
 
 export type Band = "fresh" | "aging" | "due" | "overdue";
 export type Effort = "quick" | "deep";
+export type Category = "cleaning" | "maintenance";
 export type SnoozeOption = "later_today" | "tomorrow" | "few_days" | "wake";
+export type SupplyStatus = "in_stock" | "low" | "out";
+
+export type SupplyBrief = {
+  id: number;
+  name: string;
+  status: SupplyStatus;
+};
 
 export type Task = {
   id: number;
   name: string;
   room_id: number | null;
   room_name: string | null;
-  category: string;
+  category: Category;
   cadence_days: number;
   estimated_minutes: number;
   effort: Effort;
@@ -96,6 +104,10 @@ export type Task = {
   snoozed_until: string | null;
   is_snoozed: boolean;
   is_active: boolean;
+  assignee_id: number | null;
+  assignee_name: string | null;
+  claimable: boolean;
+  supplies: SupplyBrief[];
   notes: string | null;
   ratio: number;
   band: Band;
@@ -104,20 +116,26 @@ export type Task = {
 export type TaskInput = {
   name: string;
   room_id: number | null;
+  category?: Category;
   cadence_days: number;
   estimated_minutes: number;
   effort: Effort;
+  assignee_id?: number | null;
+  claimable?: boolean;
+  supply_ids?: number[];
   notes?: string | null;
 };
 
 export function getTasks(params?: {
   room_id?: number;
   effort?: Effort;
+  category?: Category;
   include_inactive?: boolean;
 }) {
   const query = new URLSearchParams();
   if (params?.room_id != null) query.set("room_id", String(params.room_id));
   if (params?.effort) query.set("effort", params.effort);
+  if (params?.category) query.set("category", params.category);
   if (params?.include_inactive) query.set("include_inactive", "true");
   const qs = query.toString();
   return apiFetch<Task[]>(`/api/tasks${qs ? `?${qs}` : ""}`);
@@ -132,12 +150,20 @@ export function createTask(input: TaskInput) {
 
 export function updateTask(
   id: number,
-  input: Partial<TaskInput> & { clear_room?: boolean; is_active?: boolean },
+  input: Partial<TaskInput> & {
+    clear_room?: boolean;
+    clear_assignee?: boolean;
+    is_active?: boolean;
+  },
 ) {
   return apiFetch<Task>(`/api/tasks/${id}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });
+}
+
+export function claimTask(id: number) {
+  return apiFetch<Task>(`/api/tasks/${id}/claim`, { method: "POST" });
 }
 
 export function deleteTask(id: number) {
@@ -238,6 +264,84 @@ export function updateSettings(input: Partial<Settings>) {
     method: "PUT",
     body: JSON.stringify(input),
   });
+}
+
+/* ---- Chores (Phase 2, the kid surface) ---- */
+
+export type ChoresResponse = {
+  mine: Task[];
+  up_for_grabs: Task[];
+};
+
+export function getChores() {
+  return apiFetch<ChoresResponse>("/api/chores");
+}
+
+/* ---- Household members (Phase 2) ---- */
+
+export type Member = {
+  id: number;
+  name: string;
+  role: "owner" | "kid";
+  assigned_count: number;
+};
+
+export function getMembers() {
+  return apiFetch<Member[]>("/api/members");
+}
+
+export function createMember(input: { name: string; pin: string }) {
+  return apiFetch<Member>("/api/members", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateMember(id: number, input: { name?: string; pin?: string }) {
+  return apiFetch<Member>(`/api/members/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteMember(id: number) {
+  return apiFetch<void>(`/api/members/${id}`, { method: "DELETE" });
+}
+
+/* ---- Supplies (Phase 2) ---- */
+
+export type Supply = {
+  id: number;
+  name: string;
+  status: SupplyStatus;
+  last_pushed_at: string | null;
+  task_count: number;
+  pushed_to_shopping_list: boolean;
+};
+
+export function getSupplies() {
+  return apiFetch<Supply[]>("/api/supplies");
+}
+
+export function createSupply(name: string) {
+  return apiFetch<Supply>("/api/supplies", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function updateSupply(
+  id: number,
+  input: { name?: string; status?: SupplyStatus },
+) {
+  return apiFetch<Supply>(`/api/supplies/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteSupply(id: number) {
+  return apiFetch<void>(`/api/supplies/${id}`, { method: "DELETE" });
 }
 
 /* ---- Onboarding ---- */
