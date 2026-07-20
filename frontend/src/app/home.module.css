@@ -119,6 +119,65 @@
   gap: var(--space-2);
 }
 
+/* ---- Chaos clean trigger (guest mode) ---- */
+
+.chaosLink {
+  border: none;
+  background: none;
+  padding: var(--space-1);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.chaosLink:hover {
+  color: var(--color-ink);
+}
+
+/* ---- Overlay cards (this week's zone, campaigns) ---- */
+
+.overlayCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.overlayLabel {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.overlayTitle {
+  margin: 0;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-lg);
+}
+
+.overlayMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.progressTrack {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-teal);
+  transition: width var(--motion-slow) ease;
+}
+
 .burstAnchor {
   position: relative;
   display: inline-flex;

@@ -7,7 +7,8 @@ from app.models.room import Room
 from app.models.user import User
 from app.routers.auth import require_owner
 from app.schemas.onboarding import OnboardingRequest, OnboardingResponse
-from app.services import reminder_service, starter_tasks
+from app.services import reminder_service, settings_service, starter_tasks
+from app.services import zones as zone_service
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
@@ -38,6 +39,13 @@ def run_onboarding(
             has_kids=payload.has_kids,
         )
         tasks_created += len(created)
+
+    if payload.enable_zones:
+        # Opt-in to the FlyLady overlay right from setup (SPEC §6): seed
+        # the five zones, auto-map the rooms just created, flip the
+        # setting. The mapping stays fully editable in Settings.
+        zone_service.seed_default_zones(db)
+        settings_service.set_settings(db, current_user.id, {"zones_enabled": "true"})
 
     reminder_service.sync_daily_nudge(db, current_user)
     db.commit()

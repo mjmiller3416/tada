@@ -12,6 +12,9 @@ class OnboardingRequest(BaseModel):
     rooms: list[OnboardingRoom] = Field(min_length=1)
     has_pets: bool = False
     has_kids: bool = False
+    #: Phase 3: opt into the FlyLady zone overlay during setup — seeds
+    #: the five zones and auto-maps the new rooms (SPEC §6).
+    enable_zones: bool = False
 
 
 class OnboardingResponse(BaseModel):

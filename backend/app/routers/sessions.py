@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.campaign import Campaign
 from app.models.task import Task
 from app.models.user import User
 from app.routers.auth import require_owner
 from app.schemas.sessions import FocusResponse, SessionBuildRequest, SessionBuildResponse
 from app.schemas.tasks import task_to_read
+from app.services import campaigns as campaign_service
 from app.services import scheduling, settings_service
+from app.services import zones as zone_service
 
 router = APIRouter(prefix="/api", tags=["sessions"])
 
@@ -39,16 +42,26 @@ def build_session(
     current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> SessionBuildResponse:
-    """Build a focus session (SPEC §5): "I have X minutes" greedy fill
-    and/or a room-scoped session. The frontend presents the result one
-    task at a time — never as a list."""
-    tasks = scheduling.build_session(
-        db,
-        minutes=payload.minutes,
-        for_user_id=current_user.id,
-        room_id=payload.room_id,
-        effort=payload.effort,
-    )
+    """Build a focus session (SPEC §5): "I have X minutes" greedy fill,
+    a room, and — Phase 3 — guest/Chaos mode, "this week's zone", or a
+    campaign's daily slice. The frontend presents the result one task at
+    a time — never as a list."""
+    if payload.campaign_id is not None:
+        campaign = db.get(Campaign, payload.campaign_id)
+        if campaign is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
+        today = zone_service.local_today(db, current_user.id)
+        tasks = campaign_service.today_slice(db, campaign, today)
+    else:
+        tasks = scheduling.build_session(
+            db,
+            minutes=payload.minutes,
+            for_user_id=current_user.id,
+            room_id=payload.room_id,
+            effort=payload.effort,
+            zone_id=payload.zone_id,
+            guest_only=payload.guest,
+        )
     return SessionBuildResponse(
         tasks=[task_to_read(t) for t in tasks],
         total_minutes=sum(t.estimated_minutes for t in tasks),

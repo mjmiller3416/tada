@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.completion_log import CompletionLog
+from app.models.room import Room
 from app.models.task import Task
 from app.models.user import User
 
@@ -130,6 +131,8 @@ def candidate_tasks(
     for_user_id: int | None = None,
     room_id: int | None = None,
     effort: str | None = None,
+    zone_id: int | None = None,
+    guest_only: bool = False,
     now: datetime | None = None,
 ) -> list[Task]:
     """Active, un-snoozed tasks matching the lens filters, priority-ranked.
@@ -140,7 +143,13 @@ def candidate_tasks(
 
     With `for_user_id` set (Phase 2), tasks assigned to a *different*
     member are excluded — delegated work shouldn't nag the owner. Her own
-    and unassigned tasks (claimable or not) still surface."""
+    and unassigned tasks (claimable or not) still surface.
+
+    The Phase 3 overlays are just two more filters over the same ranking:
+    `zone_id` scopes to the rooms mapped into a FlyLady zone, and
+    `guest_only` is Chaos Cleaning — guest-facing tasks only, deep work
+    skipped, because with company coming the win is fast visible impact
+    (SPEC §6)."""
     now = now or _utcnow()
     query = (
         select(Task)
@@ -153,6 +162,10 @@ def candidate_tasks(
         )
     if room_id is not None:
         query = query.where(Task.room_id == room_id)
+    if zone_id is not None:
+        query = query.join(Task.room).where(Room.zone_id == zone_id)
+    if guest_only:
+        query = query.where(Task.guest_facing.is_(True), Task.effort == "quick")
     if effort in ("quick", "deep"):
         query = query.where(Task.effort == effort)
 
@@ -186,6 +199,8 @@ def build_session(
     for_user_id: int | None = None,
     room_id: int | None = None,
     effort: str | None = None,
+    zone_id: int | None = None,
+    guest_only: bool = False,
     now: datetime | None = None,
 ) -> list[Task]:
     """Build the ordered task list for a focus session (SPEC §5).
@@ -195,9 +210,18 @@ def build_session(
     work first, sized to the time she actually has. Without a budget
     (picking a room): the room's non-fresh tasks in priority order.
     Always capped at MAX_SESSION_TASKS — it's a coached sprint, not a dump.
+
+    The Phase 3 lenses ride the same flow: `guest_only` builds the
+    "company in [time]" punch list, `zone_id` builds "this week's zone".
     """
     candidates = candidate_tasks(
-        db, for_user_id=for_user_id, room_id=room_id, effort=effort, now=now
+        db,
+        for_user_id=for_user_id,
+        room_id=room_id,
+        effort=effort,
+        zone_id=zone_id,
+        guest_only=guest_only,
+        now=now,
     )
 
     if minutes is None:

@@ -170,7 +170,14 @@ export function deleteTask(id: number) {
   return apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE" });
 }
 
-export function completeTask(id: number, source: "focus_session" | "direct") {
+export type CompletionSource =
+  | "focus_session"
+  | "direct"
+  | "guest_mode"
+  | "zone"
+  | "campaign";
+
+export function completeTask(id: number, source: CompletionSource) {
   return apiFetch<Task>(`/api/tasks/${id}/complete`, {
     method: "POST",
     body: JSON.stringify({ source }),
@@ -190,6 +197,7 @@ export type Room = {
   id: number;
   name: string;
   sort_order: number;
+  zone_id: number | null;
   ratio: number | null;
   band: Band | null;
   task_count: number;
@@ -207,7 +215,10 @@ export function createRoom(name: string) {
   });
 }
 
-export function updateRoom(id: number, input: { name?: string; sort_order?: number }) {
+export function updateRoom(
+  id: number,
+  input: { name?: string; sort_order?: number; zone_id?: number; clear_zone?: boolean },
+) {
   return apiFetch<Room>(`/api/rooms/${id}`, {
     method: "PATCH",
     body: JSON.stringify(input),
@@ -239,6 +250,9 @@ export function buildSession(input: {
   minutes?: number;
   room_id?: number;
   effort?: Effort;
+  zone_id?: number;
+  campaign_id?: number;
+  guest?: boolean;
 }) {
   return apiFetch<SessionResponse>("/api/sessions/build", {
     method: "POST",
@@ -253,6 +267,8 @@ export type Settings = {
   default_session_minutes: number;
   daily_nudge_time: string; // "HH:MM", or "" when the nudge is off
   timezone: string;
+  zones_enabled: boolean; // Phase 3 overlays — opt-in, off by default
+  campaigns_enabled: boolean;
 };
 
 export function getSettings() {
@@ -344,6 +360,100 @@ export function deleteSupply(id: number) {
   return apiFetch<void>(`/api/supplies/${id}`, { method: "DELETE" });
 }
 
+/* ---- Zones (Phase 3, the FlyLady overlay) ---- */
+
+export type ZoneRoomBrief = { id: number; name: string };
+
+export type Zone = {
+  id: number;
+  name: string;
+  week_of_month: number;
+  rooms: ZoneRoomBrief[];
+};
+
+export type ZonesResponse = {
+  zones: Zone[];
+  week_of_month: number;
+  current_zone_id: number | null;
+};
+
+export function getZones() {
+  return apiFetch<ZonesResponse>("/api/zones");
+}
+
+/** Seeds FlyLady's five zones + auto-maps rooms; safe to call again. */
+export function setupZones() {
+  return apiFetch<ZonesResponse>("/api/zones/setup", { method: "POST" });
+}
+
+export function updateZone(id: number, input: { name: string }) {
+  return apiFetch<ZonesResponse>(`/api/zones/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/* ---- Campaigns (Phase 3, seasonal overlays) ---- */
+
+export type Campaign = {
+  id: number;
+  name: string;
+  season: string | null;
+  start_date: string; // ISO date
+  end_date: string;
+  active: boolean;
+  is_running: boolean;
+  total_tasks: number;
+  done_tasks: number;
+  percent: number;
+};
+
+export type CampaignTaskEntry = { task: Task; done: boolean };
+
+export type CampaignDetail = Campaign & { tasks: CampaignTaskEntry[] };
+
+export function getCampaigns() {
+  return apiFetch<Campaign[]>("/api/campaigns");
+}
+
+export function getCampaign(id: number) {
+  return apiFetch<CampaignDetail>(`/api/campaigns/${id}`);
+}
+
+export function createCampaign(input: {
+  name: string;
+  season?: string;
+  start_date: string;
+  end_date: string;
+  task_ids: number[];
+}) {
+  return apiFetch<CampaignDetail>("/api/campaigns", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateCampaign(
+  id: number,
+  input: {
+    name?: string;
+    season?: string;
+    start_date?: string;
+    end_date?: string;
+    active?: boolean;
+    task_ids?: number[];
+  },
+) {
+  return apiFetch<CampaignDetail>(`/api/campaigns/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteCampaign(id: number) {
+  return apiFetch<void>(`/api/campaigns/${id}`, { method: "DELETE" });
+}
+
 /* ---- Onboarding ---- */
 
 export type OnboardingRoomInput = { name: string; type: string };
@@ -352,6 +462,7 @@ export function runOnboarding(input: {
   rooms: OnboardingRoomInput[];
   has_pets: boolean;
   has_kids: boolean;
+  enable_zones?: boolean;
 }) {
   return apiFetch<{ rooms_created: number; tasks_created: number }>(
     "/api/onboarding",

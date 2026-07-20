@@ -9,13 +9,17 @@ import KidHome from "@/components/KidHome";
 import SnoozeMenu from "@/components/SnoozeMenu";
 import {
   completeTask,
+  getCampaigns,
   getFocus,
   getSettings,
+  getZones,
   snoozeTask,
+  type Campaign,
   type Effort,
   type FocusResponse,
   type SnoozeOption,
   type Task,
+  type Zone,
 } from "@/lib/api";
 import { roomTone } from "@/lib/decay";
 import { supplyNote } from "@/lib/supplies";
@@ -55,6 +59,8 @@ function HomeScreen({ firstName }: { firstName: string }) {
   const [focus, setFocus] = useState<FocusResponse | null>(null);
   const [effort, setEffort] = useState<EffortFilter>("all");
   const [minutes, setMinutes] = useState(15);
+  const [currentZone, setCurrentZone] = useState<Zone | null>(null);
+  const [runningCampaigns, setRunningCampaigns] = useState<Campaign[]>([]);
   const [celebratingId, setCelebratingId] = useState<number | null>(null);
   const [snoozingId, setSnoozingId] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,8 +76,26 @@ function HomeScreen({ firstName }: { firstName: string }) {
   }, [effort, loadFocus]);
 
   useEffect(() => {
+    // The overlays (SPEC §6, Phase 3) only ever appear when opted in —
+    // toggled off, the home screen is exactly the core experience.
     getSettings()
-      .then((s) => setMinutes(s.default_session_minutes))
+      .then((s) => {
+        setMinutes(s.default_session_minutes);
+        if (s.zones_enabled) {
+          getZones()
+            .then((z) =>
+              setCurrentZone(
+                z.zones.find((zone) => zone.id === z.current_zone_id) ?? null,
+              ),
+            )
+            .catch(() => {});
+        }
+        if (s.campaigns_enabled) {
+          getCampaigns()
+            .then((all) => setRunningCampaigns(all.filter((c) => c.is_running)))
+            .catch(() => {});
+        }
+      })
       .catch(() => {});
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -82,6 +106,10 @@ function HomeScreen({ firstName }: { firstName: string }) {
     const params = new URLSearchParams({ minutes: String(minutes) });
     if (effort !== "all") params.set("effort", effort);
     router.push(`/session?${params.toString()}`);
+  }
+
+  function startChaosClean() {
+    router.push(`/session?guest=1&minutes=${minutes}`);
   }
 
   function handleDone(task: Task) {
@@ -156,6 +184,15 @@ function HomeScreen({ firstName }: { firstName: string }) {
             <Button variant="primary" size="lg" fullWidth onClick={startSession}>
               I have {minutes} minutes
             </Button>
+            {/* Guest / Chaos mode (SPEC §6): quick, high-visibility wins
+                in guest-facing spots — for when company is on the way. */}
+            <button
+              type="button"
+              className={styles.chaosLink}
+              onClick={startChaosClean}
+            >
+              🚪 Company on the way? Chaos clean the guest spots
+            </button>
           </Card>
 
           {/* ---- Energy filter ---- */}
@@ -242,6 +279,76 @@ function HomeScreen({ firstName }: { firstName: string }) {
               </Link>
             </Card>
           )}
+
+          {/* ---- This week's zone (FlyLady overlay, opt-in) ---- */}
+          {currentZone && (
+            <Card className={styles.overlayCard}>
+              <p className={styles.overlayLabel}>🧭 This week’s zone</p>
+              <p className={styles.overlayTitle}>{currentZone.name}</p>
+              {currentZone.rooms.length > 0 ? (
+                <p className={styles.overlayMeta}>
+                  {currentZone.rooms.map((r) => r.name).join(" · ")}
+                </p>
+              ) : (
+                <p className={styles.overlayMeta}>
+                  No rooms mapped yet — set that up in Settings.
+                </p>
+              )}
+              <Button
+                variant="secondary"
+                fullWidth
+                disabled={currentZone.rooms.length === 0}
+                onClick={() =>
+                  router.push(
+                    `/session?zone=${currentZone.id}&minutes=${minutes}&label=${encodeURIComponent(currentZone.name)}`,
+                  )
+                }
+              >
+                Give it {minutes} minutes
+              </Button>
+            </Card>
+          )}
+
+          {/* ---- Running seasonal campaigns (opt-in) ---- */}
+          {runningCampaigns.map((campaign) => (
+            <Card key={campaign.id} className={styles.overlayCard}>
+              <p className={styles.overlayLabel}>
+                🌷 {campaign.season ? `${campaign.season} campaign` : "Campaign"}
+              </p>
+              <p className={styles.overlayTitle}>{campaign.name}</p>
+              <div
+                className={styles.progressTrack}
+                role="progressbar"
+                aria-valuenow={campaign.percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${campaign.percent}%` }}
+                />
+              </div>
+              <p className={styles.overlayMeta}>
+                {campaign.done_tasks} of {campaign.total_tasks} done —{" "}
+                {campaign.percent === 100
+                  ? "all wrapped up! 🎉"
+                  : "no rush, it’s coming along."}
+              </p>
+              {campaign.percent < 100 && (
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  onClick={() =>
+                    router.push(
+                      `/session?campaign=${campaign.id}&label=${encodeURIComponent(campaign.name)}`,
+                    )
+                  }
+                >
+                  Chip away at it
+                </Button>
+              )}
+            </Card>
+          ))}
         </>
       )}
     </AppShell>

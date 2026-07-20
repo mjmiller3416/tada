@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.room import Room
 from app.models.task import Task
 from app.models.user import User
+from app.models.zone import Zone
 from app.routers.auth import require_owner
 from app.schemas.rooms import RoomCreate, RoomRead, RoomUpdate
 from app.services import scheduling
@@ -26,6 +27,7 @@ def _room_to_read(room: Room, tasks: list[Task]) -> RoomRead:
         id=room.id,
         name=room.name,
         sort_order=room.sort_order,
+        zone_id=room.zone_id,
         ratio=round(ratio, 3) if ratio is not None else None,
         band=scheduling.band_for_ratio(ratio) if ratio is not None else None,
         task_count=len(active),
@@ -73,6 +75,12 @@ def update_room(
         room.name = payload.name
     if payload.sort_order is not None:
         room.sort_order = payload.sort_order
+    if payload.clear_zone:
+        room.zone_id = None
+    elif payload.zone_id is not None:
+        if db.get(Zone, payload.zone_id) is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Zone not found")
+        room.zone_id = payload.zone_id
     db.commit()
     tasks = db.scalars(select(Task).where(Task.room_id == room.id)).all()
     return _room_to_read(room, list(tasks))

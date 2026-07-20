@@ -4,7 +4,13 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
-import { buildSession, completeTask, type Effort, type Task } from "@/lib/api";
+import {
+  buildSession,
+  completeTask,
+  type CompletionSource,
+  type Effort,
+  type Task,
+} from "@/lib/api";
 import { roomTone } from "@/lib/decay";
 import { supplyNote } from "@/lib/supplies";
 import { Button, Card, Confetti, FocusCard } from "@/components/ui";
@@ -13,8 +19,9 @@ import styles from "./session.module.css";
 /**
  * The focus session (SPEC §5) — the signature interaction. One task at a
  * time, a big Done and a quiet Skip, dots for momentum, and never the
- * full list. Launched from "I have X minutes" or by picking a room; both
- * arrive here as query params.
+ * full list. Launched from "I have X minutes", a room, or — Phase 3 —
+ * guest/Chaos mode, this week's zone, or a campaign; all arrive here as
+ * query params and run through the exact same one-card flow.
  */
 export default function SessionPage() {
   return (
@@ -30,6 +37,40 @@ export default function SessionPage() {
 
 type Phase = "loading" | "empty" | "active" | "complete";
 
+type Mode = "focus" | "guest" | "zone" | "campaign";
+
+/** Per-mode flavor: the little header tag, the completion source that
+ * lands in history, and warm mode-specific copy. */
+const MODE_COPY: Record<
+  Mode,
+  { tag: string | null; source: CompletionSource; emptyTitle: string; emptyBody: string }
+> = {
+  focus: {
+    tag: null,
+    source: "focus_session",
+    emptyTitle: "Nothing needs you right now",
+    emptyBody: "Everything here is feeling fresh. Enjoy the moment ✨",
+  },
+  guest: {
+    tag: "🚪 Chaos clean — quick, visible wins",
+    source: "guest_mode",
+    emptyTitle: "The guest spots look great",
+    emptyBody: "Truly — you're ready for company. Go put the kettle on ☕",
+  },
+  zone: {
+    tag: "🧭 This week's zone",
+    source: "zone",
+    emptyTitle: "This zone is feeling fresh",
+    emptyBody: "Its week is going beautifully. Nothing needs you here ✨",
+  },
+  campaign: {
+    tag: "🌷 Campaign",
+    source: "campaign",
+    emptyTitle: "That's the whole campaign!",
+    emptyBody: "Every single task, done. What a finish 🎉",
+  },
+};
+
 function SessionScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -37,6 +78,19 @@ function SessionScreen() {
   const minutesParam = searchParams.get("minutes");
   const roomParam = searchParams.get("room");
   const effortParam = searchParams.get("effort");
+  const zoneParam = searchParams.get("zone");
+  const campaignParam = searchParams.get("campaign");
+  const isGuest = searchParams.get("guest") === "1";
+  const label = searchParams.get("label");
+
+  const mode: Mode = campaignParam
+    ? "campaign"
+    : zoneParam
+      ? "zone"
+      : isGuest
+        ? "guest"
+        : "focus";
+  const copy = MODE_COPY[mode];
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -57,13 +111,16 @@ function SessionScreen() {
         effortParam === "quick" || effortParam === "deep"
           ? (effortParam as Effort)
           : undefined,
+      zone_id: zoneParam ? Number(zoneParam) : undefined,
+      campaign_id: campaignParam ? Number(campaignParam) : undefined,
+      guest: isGuest || undefined,
     })
       .then((session) => {
         setTasks(session.tasks);
         setPhase(session.tasks.length > 0 ? "active" : "empty");
       })
       .catch(() => setPhase("empty"));
-  }, [minutesParam, roomParam, effortParam]);
+  }, [minutesParam, roomParam, effortParam, zoneParam, campaignParam, isGuest]);
 
   useEffect(() => {
     build();
@@ -81,7 +138,7 @@ function SessionScreen() {
   function handleDone(task: Task) {
     // Log it, but never block her flow on the network — the card has
     // already celebrated.
-    completeTask(task.id, "focus_session").catch(() => {});
+    completeTask(task.id, copy.source).catch(() => {});
     setDoneCount((n) => n + 1);
     setDoneMinutes((m) => m + task.estimated_minutes);
     advance();
@@ -89,11 +146,26 @@ function SessionScreen() {
 
   const current = tasks[index];
 
+  const completeBody =
+    doneCount === 0
+      ? "You showed up, and that counts. Your home will be here when you’re ready."
+      : mode === "guest"
+        ? `${doneCount} ${doneCount === 1 ? "spot" : "spots"} guest-ready in about ${doneMinutes} minutes. Let them ring the bell 🛎️`
+        : mode === "campaign"
+          ? `${doneCount} more ${doneCount === 1 ? "task" : "tasks"} toward the finish line. Lovely, steady progress 🌷`
+          : `${doneCount} ${doneCount === 1 ? "task" : "tasks"} done — about ${doneMinutes} minutes of care. Your home says thank you.`;
+
   return (
     <main className={styles.page}>
       <Confetti active={confetti} onComplete={() => setConfetti(false)} />
 
       <header className={styles.topBar}>
+        {copy.tag && (
+          <span className={styles.modeTag}>
+            {copy.tag}
+            {label ? ` · ${label}` : ""}
+          </span>
+        )}
         <Link href="/" className={styles.exit}>
           ✕ End session
         </Link>
@@ -107,10 +179,8 @@ function SessionScreen() {
         {phase === "empty" && (
           <Card padding="lg" className={styles.endCard}>
             <p className={styles.bigEmoji}>🌤️</p>
-            <h2 className={styles.endTitle}>Nothing needs you right now</h2>
-            <p className={styles.endBody}>
-              Everything here is feeling fresh. Enjoy the moment ✨
-            </p>
+            <h2 className={styles.endTitle}>{copy.emptyTitle}</h2>
+            <p className={styles.endBody}>{copy.emptyBody}</p>
             <Button variant="primary" size="lg" fullWidth onClick={() => router.push("/")}>
               Back home
             </Button>
@@ -136,11 +206,7 @@ function SessionScreen() {
           <Card padding="lg" className={styles.endCard}>
             <p className={styles.bigEmoji}>🎉</p>
             <h2 className={styles.endTitle}>Ta-da! Session complete.</h2>
-            <p className={styles.endBody}>
-              {doneCount > 0
-                ? `${doneCount} ${doneCount === 1 ? "task" : "tasks"} done — about ${doneMinutes} minutes of care. Your home says thank you.`
-                : "You showed up, and that counts. Your home will be here when you’re ready."}
-            </p>
+            <p className={styles.endBody}>{completeBody}</p>
             <Button variant="primary" size="lg" fullWidth onClick={() => router.push("/")}>
               Back home
             </Button>

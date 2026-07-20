@@ -45,6 +45,7 @@ function Wizard({ firstName }: { firstName: string }) {
   const [nextKey, setNextKey] = useState(1);
   const [hasPets, setHasPets] = useState(false);
   const [hasKids, setHasKids] = useState(false);
+  const [enableZones, setEnableZones] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ rooms: number; tasks: number } | null>(null);
@@ -75,6 +76,7 @@ function Wizard({ firstName }: { firstName: string }) {
         rooms: picked.map(({ name, type }) => ({ name: name.trim() || "Room", type })),
         has_pets: hasPets,
         has_kids: hasKids,
+        enable_zones: enableZones,
       });
       setResult({ rooms: res.rooms_created, tasks: res.tasks_created });
       setStep("done");
@@ -188,7 +190,20 @@ function Wizard({ firstName }: { firstName: string }) {
               >
                 🧒 Kids live here {hasKids ? "✓" : ""}
               </Chip>
+              <Chip
+                tone={enableZones ? "coral" : "neutral"}
+                onClick={() => setEnableZones(!enableZones)}
+              >
+                🧭 Try FlyLady zones {enableZones ? "✓" : ""}
+              </Chip>
             </div>
+            {enableZones && (
+              <p className={styles.hint}>
+                Each week one area of your home gets a little extra love.
+                We’ll sort your rooms into the five classic zones — you can
+                rearrange them anytime in Settings.
+              </p>
+            )}
 
             {error && <p className={styles.error}>{error}</p>}
 

@@ -16,7 +16,9 @@ from app.schemas.tasks import (
     TaskUpdate,
     task_to_read,
 )
+from app.services import campaigns as campaign_service
 from app.services import reminder_service, scheduling
+from app.services import zones as zone_service
 from app.services.push_service import notify_owners
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -188,6 +190,11 @@ def complete_task(
 
     scheduling.complete_task(db, task, current_user, payload.source)
     reminder_service.clear_task_reminders(db, task.id)
+    # Whatever the lens, a running campaign that lists this task gets to
+    # tick it off — progress is progress (SPEC §6, Phase 3).
+    campaign_service.mark_done_in_running_campaigns(
+        db, task.id, zone_service.local_today(db, current_user.id)
+    )
     db.commit()
 
     if current_user.role == "kid":

@@ -11,6 +11,8 @@ class SettingsRead(BaseModel):
     default_session_minutes: int
     daily_nudge_time: str  # "HH:MM", or "" when the nudge is off
     timezone: str
+    zones_enabled: bool
+    campaigns_enabled: bool
 
 
 class SettingsUpdate(BaseModel):
@@ -18,6 +20,8 @@ class SettingsUpdate(BaseModel):
     default_session_minutes: int | None = Field(default=None, ge=5, le=240)
     daily_nudge_time: str | None = None
     timezone: str | None = None
+    zones_enabled: bool | None = None
+    campaigns_enabled: bool | None = None
 
     @field_validator("daily_nudge_time")
     @classmethod

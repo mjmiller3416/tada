@@ -7,6 +7,7 @@ from app.models.task import Task
 from app.models.completion_log import CompletionLog
 from app.models.setting import Setting
 from app.models.reminder import Reminder
+from app.models.campaign import Campaign, CampaignTask
 
 __all__ = [
     "User",
@@ -19,4 +20,6 @@ __all__ = [
     "CompletionLog",
     "Setting",
     "Reminder",
+    "Campaign",
+    "CampaignTask",
 ]

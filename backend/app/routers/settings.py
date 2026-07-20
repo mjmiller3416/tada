@@ -16,7 +16,16 @@ def _to_read(values: dict[str, str]) -> SettingsRead:
         default_session_minutes=int(values["default_session_minutes"]),
         daily_nudge_time=values["daily_nudge_time"],
         timezone=values["timezone"],
+        zones_enabled=values["zones_enabled"] == "true",
+        campaigns_enabled=values["campaigns_enabled"] == "true",
     )
+
+
+def _to_stored(value: object) -> str:
+    """Settings store as strings; booleans as "true"/"false"."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 @router.get("", response_model=SettingsRead)
@@ -35,7 +44,7 @@ def update_settings(
 ) -> SettingsRead:
     # None = leave untouched. daily_nudge_time="" is meaningful: nudge off.
     updates = {
-        key: str(value)
+        key: _to_stored(value)
         for key, value in payload.model_dump(exclude_unset=True).items()
         if value is not None
     }

@@ -105,7 +105,11 @@ def task_to_read(task: Task, now: datetime | None = None) -> TaskRead:
 
 
 class CompleteRequest(BaseModel):
-    source: Literal["focus_session", "direct"] = "direct"
+    # The Phase 3 lenses log their own source so history can tell a
+    # chaos clean from a zone week from a campaign (SPEC §3).
+    source: Literal["focus_session", "direct", "guest_mode", "zone", "campaign"] = (
+        "direct"
+    )
 
 
 class SnoozeRequest(BaseModel):

@@ -6,13 +6,17 @@ from sqlalchemy.orm import Session
 
 from app.models.setting import Setting
 
-#: Every known Phase 1 setting and its default. Values are stored as
-#: strings; the API schema owns validation/typing.
+#: Every known setting and its default. Values are stored as strings;
+#: the API schema owns validation/typing. Booleans store as "true"/"false".
 DEFAULTS: dict[str, str] = {
     "daily_focus_count": "3",        # top-N on the home screen (1..3)
     "default_session_minutes": "15",  # the "I have X minutes" default
     "daily_nudge_time": "08:30",     # local HH:MM; "" disables the nudge
     "timezone": "America/New_York",  # IANA name, for the nudge schedule
+    # Phase 3 overlays — opt-in, off by default (SPEC §6). Toggling one
+    # off cleanly returns to the core decay-driven experience.
+    "zones_enabled": "false",        # the FlyLady zone overlay
+    "campaigns_enabled": "false",    # seasonal campaigns
 }
 
 
