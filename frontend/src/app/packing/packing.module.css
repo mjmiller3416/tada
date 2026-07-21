@@ -1,0 +1,203 @@
+.help {
+  margin: 0 0 var(--space-4);
+  color: var(--color-ink-soft);
+}
+
+/* ---- Template picker & create form ---- */
+
+.pickerCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.formTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+.templateTile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  text-align: left;
+  transition: transform var(--motion-fast) var(--ease-pop),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+
+.templateTile:active {
+  transform: scale(0.97);
+}
+
+.templateTile:hover {
+  border-color: var(--color-coral);
+}
+
+.templateEmoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.templateName {
+  font-weight: var(--weight-bold);
+}
+
+.templateCount {
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink-soft);
+}
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  font: inherit;
+  color: var(--color-ink);
+  min-height: var(--tap-target);
+}
+
+.formActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--status-overdue);
+  font-size: var(--text-sm);
+}
+
+/* ---- Active list cards ---- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.listCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.listName {
+  font-weight: var(--weight-bold);
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+
+.eventLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.progressTrack {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-teal);
+  transition: width var(--motion-slow) ease;
+}
+
+.progressText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.emptyCard {
+  text-align: center;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-ink-soft);
+}
+
+/* ---- Archived ---- */
+
+.archivedBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.archivedToggle {
+  border: none;
+  background: none;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  padding: var(--space-2);
+}
+
+.archivedCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  opacity: 0.85;
+}
+
+.archivedName {
+  font-weight: var(--weight-bold);
+  color: var(--color-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.archivedActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.remove {
+  border: none;
+  background: none;
+  color: var(--color-ink-soft);
+  font-size: var(--text-base);
+  padding: var(--space-1);
+}

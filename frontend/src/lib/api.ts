@@ -454,6 +454,158 @@ export function deleteCampaign(id: number) {
   return apiFetch<void>(`/api/campaigns/${id}`, { method: "DELETE" });
 }
 
+/* ---- Packing lists (Phase 4 — its own module, apart from cleaning) ---- */
+
+export type PackingCategory =
+  | "moving"
+  | "travel"
+  | "events"
+  | "work"
+  | "outdoor"
+  | "family_kids"
+  | "emergency"
+  | "shipping_storage"
+  | "everyday"
+  | "custom";
+
+export type PackingListSummary = {
+  id: number;
+  name: string;
+  category: PackingCategory;
+  is_template: boolean;
+  event_date: string | null; // ISO date
+  status: "active" | "archived";
+  packed_count: number;
+  total_count: number;
+  percent: number;
+  created_at: string;
+};
+
+export type PackingItem = {
+  id: number;
+  name: string;
+  quantity: string | null;
+  notes: string | null;
+  packed: boolean;
+  sort_order: number;
+};
+
+export type PackingSection = {
+  id: number;
+  name: string;
+  sort_order: number;
+  packed_count: number;
+  total_count: number;
+  items: PackingItem[];
+};
+
+export type PackingListDetail = PackingListSummary & {
+  reminder_enabled: boolean;
+  sections: PackingSection[];
+};
+
+export function getPackingTemplates() {
+  return apiFetch<PackingListSummary[]>("/api/packing/templates");
+}
+
+export function getPackingLists() {
+  return apiFetch<PackingListSummary[]>("/api/packing/lists");
+}
+
+/** Clones a source list (a template, or an archived list to reuse). */
+export function createPackingList(input: {
+  source_list_id: number;
+  name?: string;
+  event_date?: string | null;
+}) {
+  return apiFetch<PackingListDetail>("/api/packing/lists", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function getPackingList(id: number) {
+  return apiFetch<PackingListDetail>(`/api/packing/lists/${id}`);
+}
+
+export function updatePackingList(
+  id: number,
+  input: {
+    name?: string;
+    event_date?: string;
+    clear_event_date?: boolean;
+    status?: "active" | "archived";
+    reminder_enabled?: boolean;
+    reminder_days_before?: number;
+  },
+) {
+  return apiFetch<PackingListDetail>(`/api/packing/lists/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deletePackingList(id: number) {
+  return apiFetch<void>(`/api/packing/lists/${id}`, { method: "DELETE" });
+}
+
+export function addPackingSection(listId: number, name: string) {
+  return apiFetch<PackingListDetail>(`/api/packing/lists/${listId}/sections`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function updatePackingSection(
+  id: number,
+  input: { name?: string; sort_order?: number },
+) {
+  return apiFetch<PackingListDetail>(`/api/packing/sections/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deletePackingSection(id: number) {
+  return apiFetch<PackingListDetail>(`/api/packing/sections/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function addPackingItem(
+  sectionId: number,
+  input: { name: string; quantity?: string; notes?: string },
+) {
+  return apiFetch<PackingListDetail>(`/api/packing/sections/${sectionId}/items`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePackingItem(
+  id: number,
+  input: {
+    name?: string;
+    quantity?: string;
+    clear_quantity?: boolean;
+    notes?: string;
+    clear_notes?: boolean;
+    packed?: boolean;
+    sort_order?: number;
+  },
+) {
+  return apiFetch<PackingListDetail>(`/api/packing/items/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deletePackingItem(id: number) {
+  return apiFetch<PackingListDetail>(`/api/packing/items/${id}`, {
+    method: "DELETE",
+  });
+}
+
 /* ---- Onboarding ---- */
 
 export type OnboardingRoomInput = { name: string; type: string };

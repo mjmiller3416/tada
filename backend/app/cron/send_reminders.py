@@ -12,19 +12,27 @@ services/reminder_service.py):
 - Snooze reminders (task_id set): one-shot "ready when you are" nudges.
   If the task got done (or deactivated) in the meantime, the reminder is
   dropped silently — never nag about finished work (SPEC §5, no guilt).
+
+Phase 4 adds packing countdowns (packing_list_id set): "Trip in 3 days —
+6 items still unpacked", composed here at send time from the live list
+so the count is never stale, advanced daily until the event date. Same
+no-guilt rule: an archived list or a passed date drops silently.
 """
 
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.models.packing import PackingList
 from app.models.reminder import Reminder
 from app.models.task import Task
 from app.models.user import User
-from app.services import reminder_service
+from app.services import packing as packing_service
+from app.services import reminder_service, settings_service
 from app.services.push_service import push_to_user
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -35,6 +43,38 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> None:
     user = db.get(User, reminder.user_id)
     if user is None:
         reminder.active = False
+        return
+
+    if reminder.packing_list_id is not None:
+        # Packing countdown (Phase 4): compose from the live list so the
+        # unpacked count is current; drop silently if the list is
+        # archived/gone or the event has passed — never nag after the
+        # moment (SPEC §5, no guilt).
+        packing_list = db.get(PackingList, reminder.packing_list_id)
+        if packing_list is None or packing_list.status != "active":
+            reminder.active = False
+            logger.info("Reminder %d dropped (packing list archived or gone)", reminder.id)
+            return
+        try:
+            tz = ZoneInfo(settings_service.get_setting(db, user.id, "timezone"))
+        except Exception:
+            tz = timezone.utc
+        today = datetime.now(tz).date()
+        first_name = user.name.split()[0] if user.name else "there"
+        composed = packing_service.compose_countdown(packing_list, today, first_name)
+        if composed is None:
+            reminder.active = False
+            logger.info("Reminder %d dropped (event date passed)", reminder.id)
+            return
+        title, body = composed
+        push_to_user(db, user.id, title, body)
+        reminder.last_sent_at = now
+        packed, total = packing_service.progress(packing_list)
+        if total and packed == total:
+            # She's fully packed — that cheerful send was the finale.
+            reminder.active = False
+        else:
+            packing_service.advance_countdown_reminder(db, reminder, packing_list, user)
         return
 
     if reminder.task_id is not None:

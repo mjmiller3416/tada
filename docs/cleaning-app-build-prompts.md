@@ -212,6 +212,116 @@ SPEC §5 and §8. Summarize what you built when done.
 ```
 
 **Phase 3 is done when:** guest mode produces a fast guest-area punch list, a seasonal campaign tracks progress, and (if enabled) the current FlyLady zone surfaces its tasks — all without disrupting the everyday decay-driven flow.
+   
+```
+
+Phase 4: Packing Lists
+
+> A self-contained module added after Phases 0–3. It complements the main `cleaning-app-spec.md` — reuse that spec's design system (§5) and reminder plumbing, but this feature has its **own model and logic**. Read alongside `packing-starter-templates.md` (the seed data).
+
+---
+
+## Why this is a separate module (read first)
+
+Packing lists are **not** cleaning tasks and must not be built like them:
+
+- They are **one-off and event-driven** (pack for a move or trip once, then archive) — there is **no decay**. Do NOT give packing items a cadence, a dirtiness ratio, or a `last_done_at`. They do not flow through the scheduling engine.
+- Packing is the one place a **full, grouped checklist beats one-at-a-time** — you want the whole list visible so nothing is forgotten. Do NOT route packing through the focus-session flow.
+
+What it *does* reuse, so it feels native rather than bolted-on:
+
+- **The design system** (main SPEC §5): the same bright, playful cards, chips, buttons, and warm copy.
+- **The reminder/push plumbing** (Phases 0–1): an optional countdown reminder tied to a list's event date.
+
+Keep it in its own tables, routes (`/packing/...`), services, and pages. Built isolated, it cannot destabilize the working cleaning core.
+
+**Scope for v1:** Maryann-only. No kid assignment, no multi-user sharing on packing (the kids' logins don't touch this feature).
+
+---
+
+## Data model
+
+Templates are just template-flagged lists, so one set of tables covers both.
+
+```
+PackingList
+  id, name
+  category: one of "moving" | "travel" | "events" | "work" | "outdoor" |
+            "family_kids" | "emergency" | "shipping_storage" | "everyday" | "custom"
+  is_template: bool            # true = a seeded starter template to clone from
+  event_date: date (nullable)  # move/trip date; drives the optional reminder
+  status: "active" | "archived"
+  created_at
+
+PackingSection                 # a group within a list ("Clothes", "Documents", ...)
+  id, list_id -> PackingList, name, sort_order
+
+PackingItem
+  id, section_id -> PackingSection
+  name, quantity (nullable, text or int), notes (nullable)
+  packed: bool                 # the checkbox
+  sort_order
+```
+
+Two levels, matching the request: the **list** has a top-level category (one of the 10), and **within** a list, items are grouped into **sections** (a vacation list can have a "Clothes" section with items under it). Sections belong to a list; items belong to a section.
+
+---
+
+## Behavior
+
+**Templates & creation.** Seed the 10 category templates from `packing-starter-templates.md` as `is_template = true` lists. "New list" offers: pick a template → clone its sections + items into a new `active` list (all items `packed = false`) → name it (default to the template name + date) → optionally set an `event_date`. "Custom" clones an empty list with one "Items" section.
+
+**The checklist UI (NOT the focus flow).** A list opens as the full grouped checklist:
+- Sections as headers, items with checkboxes beneath.
+- A progress bar — overall (14 of 20 packed) and ideally per-section.
+- Check/uncheck items; add, rename, reorder, and delete items and sections; add ad-hoc sections and items.
+- Warm, no-guilt tone consistent with the rest of Tada; a small celebration when a list hits 100% packed.
+
+**Multiple active lists at once.** She can run a Moving list and a Travel list in parallel (her current situation). A "Lists" / "Packing" index shows active lists with their progress; archived lists are tucked away but restorable.
+
+**Archiving.** When a trip/move is done, archive the list (don't delete) so it can be reused or referenced later. Reusing an archived list = clone it into a fresh active list.
+
+**Optional reminder (reuses existing plumbing).** If a list has an `event_date`, allow a reminder like "Trip in 3 days — 6 items still unpacked," created through the existing Reminder + Web Push system. One-way nudge; nothing new on the notification side beyond a new reminder source.
+
+**Navigation.** Add "Packing" (or "Lists") as its own section in the app shell — parallel to the cleaning surfaces, never mixed into them.
+
+---
+
+## Build prompt (Phase 4)
+
+```
+Read cleaning-app-spec.md (especially section 5, the design system) and packing-starter-templates.md.
+Build Phase 4: a Packing Lists module. This is a SEPARATE, self-contained feature — it must
+NOT touch the decay/scheduling engine or the focus-session flow, and it has its own tables,
+routes, services, and pages. v1 is Maryann-only (the kids' logins do not touch this feature).
+
+Build:
+1. Data model + an additive migration: PackingList (name, category [the 10 listed in
+   packing-starter-templates.md], is_template bool, event_date nullable, status
+   active/archived), PackingSection (list_id, name, sort_order), PackingItem (section_id,
+   name, quantity nullable, notes nullable, packed bool, sort_order). No cadence, no
+   last_done_at, no dirtiness — packing items do not decay.
+2. Seed the 10 category templates from packing-starter-templates.md as is_template=true
+   lists with their sections and items (packed=false).
+3. Backend routes/services under /packing following the existing repository/service pattern:
+   list/create/clone-from-template/archive lists; add/rename/reorder/delete sections and
+   items; toggle an item packed. "Create from template" clones the template's sections and
+   items into a new active list.
+4. Frontend: a "Packing" section in the app shell (parallel to cleaning). A lists index
+   showing active lists with progress; a "new from template" picker; and a list detail page
+   that renders the FULL grouped checklist — sections with checkboxes, overall and per-section
+   progress bars, add/edit/reorder for items and sections. This uses the checklist pattern,
+   NOT the one-task-at-a-time focus flow — the whole list stays visible on purpose. Reuse the
+   existing UI primitives and the bright, warm, no-guilt design. Small celebration at 100%.
+5. Optional reminder: if a list has an event_date, let a reminder ("Trip in N days — X items
+   unpacked") be created through the existing Reminder + Web Push system (a new reminder
+   source only — no new notification plumbing).
+
+Keep everything in its own module so it can't affect the cleaning core. Follow the SPEC
+section 8 conventions and summarize what you built when done.
+```
+
+**Phase 4 is done when:** Maryann can create a list from a pre-filled template, see it as a full grouped checklist with progress, check items off, run more than one list at once, archive a finished list, and (optionally) get a countdown reminder before an event date — all without any interaction with the cleaning/decay side of the app.
 
 ---
 

@@ -16,6 +16,11 @@ class Reminder(Base):
     - Snooze reminders: one-shot rows with `task_id` set, created when a
       task is snoozed ("defer the reminder", SPEC §6). Deactivated after
       sending, or silently dropped if the task got done in the meantime.
+
+    Phase 4 adds a third kind: packing countdowns (`packing_list_id`
+    set), whose body — "Trip in 3 days, 6 items still unpacked" — is
+    composed at send time from the live list, then advanced daily until
+    the event date.
     """
 
     __tablename__ = "reminders"
@@ -26,6 +31,9 @@ class Reminder(Base):
     )
     task_id: Mapped[int | None] = mapped_column(
         ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
+    )
+    packing_list_id: Mapped[int | None] = mapped_column(
+        ForeignKey("packing_lists.id", ondelete="CASCADE"), nullable=True
     )
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
