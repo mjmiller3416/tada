@@ -32,6 +32,8 @@ class PackingListRead(BaseModel):
     category: str
     is_template: bool
     event_date: date | None
+    destination: str | None
+    duration: str | None
     status: str
     packed_count: int
     total_count: int
@@ -54,12 +56,19 @@ class PackingListCreate(BaseModel):
     #: Defaults to the source's name when omitted.
     name: str | None = Field(default=None, min_length=1, max_length=120)
     event_date: date | None = None
+    destination: str | None = Field(default=None, max_length=120)
+    #: Free text ("5 days", "a long weekend") — a note, not math.
+    duration: str | None = Field(default=None, max_length=60)
 
 
 class PackingListUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     event_date: date | None = None
     clear_event_date: bool = False
+    destination: str | None = Field(default=None, max_length=120)
+    clear_destination: bool = False
+    duration: str | None = Field(default=None, max_length=60)
+    clear_duration: bool = False
     status: str | None = None
     #: Turn the countdown nudge on/off (needs an event_date to turn on).
     reminder_enabled: bool | None = None
@@ -134,6 +143,8 @@ def list_to_read(packing_list: PackingList) -> PackingListRead:
         else "custom",
         is_template=packing_list.is_template,
         event_date=packing_list.event_date,
+        destination=packing_list.destination,
+        duration=packing_list.duration,
         status=packing_list.status,
         packed_count=packed,
         total_count=total,

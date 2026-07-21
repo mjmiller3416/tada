@@ -69,15 +69,20 @@ def clone_list(
     source: PackingList,
     name: str,
     event_date: date | None,
+    destination: str | None = None,
+    duration: str | None = None,
 ) -> PackingList:
     """Clone any list — a template or an archived one, the same move —
     into a fresh active list: same sections and items, every checkbox
-    cleared. Caller commits."""
+    cleared. Destination/duration belong to the new trip, so they come
+    from the caller (never copied from the source). Caller commits."""
     new_list = PackingList(
         name=name,
         category=source.category,
         is_template=False,
         event_date=event_date,
+        destination=destination,
+        duration=duration,
         status="active",
     )
     new_list.sections = [

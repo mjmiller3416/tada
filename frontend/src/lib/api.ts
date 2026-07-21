@@ -474,6 +474,8 @@ export type PackingListSummary = {
   category: PackingCategory;
   is_template: boolean;
   event_date: string | null; // ISO date
+  destination: string | null;
+  duration: string | null; // free text ("5 days", "a long weekend")
   status: "active" | "archived";
   packed_count: number;
   total_count: number;
@@ -517,6 +519,8 @@ export function createPackingList(input: {
   source_list_id: number;
   name?: string;
   event_date?: string | null;
+  destination?: string;
+  duration?: string;
 }) {
   return apiFetch<PackingListDetail>("/api/packing/lists", {
     method: "POST",
@@ -534,6 +538,10 @@ export function updatePackingList(
     name?: string;
     event_date?: string;
     clear_event_date?: boolean;
+    destination?: string;
+    clear_destination?: boolean;
+    duration?: string;
+    clear_duration?: boolean;
     status?: "active" | "archived";
     reminder_enabled?: boolean;
     reminder_days_before?: number;

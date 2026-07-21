@@ -55,6 +55,8 @@ function PackingScreen() {
   const [chosen, setChosen] = useState<PackingListSummary | null>(null);
   const [name, setName] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [destination, setDestination] = useState("");
+  const [duration, setDuration] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,10 +89,18 @@ function PackingScreen() {
     setChosen(template);
     setName(template.name);
     setEventDate("");
+    setDestination("");
+    setDuration("");
     setError(null);
   }
 
-  async function handleCreate(sourceId: number, listName: string, date: string) {
+  async function handleCreate(
+    sourceId: number,
+    listName: string,
+    date: string,
+    dest = "",
+    length = "",
+  ) {
     if (saving) return;
     setSaving(true);
     setError(null);
@@ -99,6 +109,8 @@ function PackingScreen() {
         source_list_id: sourceId,
         name: listName.trim() || undefined,
         event_date: date || undefined,
+        destination: dest.trim() || undefined,
+        duration: length.trim() || undefined,
       });
       router.push(`/packing/${created.id}`);
     } catch {
@@ -201,6 +213,28 @@ function PackingScreen() {
             />
           </label>
 
+          <label className={styles.field}>
+            <span className={styles.label}>Destination (optional)</span>
+            <input
+              type="text"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              placeholder="Where to? e.g. Orlando"
+              className={styles.input}
+            />
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.label}>How long? (optional)</span>
+            <input
+              type="text"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="e.g. 5 days, a long weekend"
+              className={styles.input}
+            />
+          </label>
+
           {error && <p className={styles.error}>{error}</p>}
 
           <div className={styles.formActions}>
@@ -208,7 +242,9 @@ function PackingScreen() {
               variant="primary"
               fullWidth
               disabled={saving}
-              onClick={() => handleCreate(chosen.id, name, eventDate)}
+              onClick={() =>
+                handleCreate(chosen.id, name, eventDate, destination, duration)
+              }
             >
               {saving ? "Creating…" : "Create list"}
             </Button>
@@ -240,10 +276,17 @@ function PackingScreen() {
                   {meta.emoji} {meta.label}
                 </Chip>
               </div>
-              {list.event_date && (
+              {(list.destination || list.duration || list.event_date) && (
                 <p className={styles.eventLine}>
-                  {prettyEventDate(list.event_date)}
-                  {countdown && ` · ${countdown}`}
+                  {[
+                    list.destination && `📍 ${list.destination}`,
+                    list.duration,
+                    list.event_date &&
+                      prettyEventDate(list.event_date) +
+                        (countdown ? ` · ${countdown}` : ""),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               )}
               <ProgressBar percent={list.percent} />

@@ -110,7 +110,11 @@ def create_list(
     — templates are just template-flagged lists, so it's the same clone."""
     source = _get_list(db, payload.source_list_id)
     name = (payload.name or source.name).strip()
-    new_list = packing_service.clone_list(db, source, name, payload.event_date)
+    destination = payload.destination.strip() if payload.destination else None
+    duration = payload.duration.strip() if payload.duration else None
+    new_list = packing_service.clone_list(
+        db, source, name, payload.event_date, destination or None, duration or None
+    )
     db.commit()
     db.refresh(new_list)
     return _detail(db, new_list)
@@ -132,8 +136,9 @@ def update_list(
     current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> PackingListDetail:
-    """Rename, set/clear the event date, archive/restore, and toggle the
-    countdown reminder. Archiving keeps everything (never delete a
+    """Rename, set/clear the event date, destination, and duration,
+    archive/restore, and toggle the countdown reminder. Archiving keeps
+    everything (never delete a
     finished trip — it's the seed for the next one) and quiets any
     pending nudge."""
     packing_list = _get_list(db, list_id)
@@ -144,6 +149,14 @@ def update_list(
         packing_list.event_date = None
     elif payload.event_date is not None:
         packing_list.event_date = payload.event_date
+    if payload.clear_destination:
+        packing_list.destination = None
+    elif payload.destination is not None:
+        packing_list.destination = payload.destination.strip() or None
+    if payload.clear_duration:
+        packing_list.duration = None
+    elif payload.duration is not None:
+        packing_list.duration = payload.duration.strip() or None
     if payload.status is not None:
         if packing_list.is_template:
             raise HTTPException(

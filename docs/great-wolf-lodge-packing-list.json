@@ -1,0 +1,291 @@
+{
+  "name": "Great Wolf Lodge Family Trip",
+  "category": "custom",
+  "is_template": false,
+  "status": "active",
+  "event_date": null,
+  "_note": "Extracted from Maryann's PDF. Import as a real custom list owned by the owner (is_template=false, status=active). Her PDF's 13 top-level sections are preserved; the two-column sub-groups (each-person/shared, adults/kids) are folded into each item's quantity/notes because a list is one level of sections -> items. Two reference sections (leave-at-home, bag plan) are kept at the end but marked reference. A few pure tips that aren't packable items were dropped.",
+  "sections": [
+    {
+      "name": "Arrival-day water-park bag",
+      "note": "Keep accessible before hotel check-in",
+      "items": [
+        { "name": "Swimsuit", "notes": "Each person; consider wearing under travel clothes" },
+        { "name": "Water shoes or secure sandals", "notes": "Each person" },
+        { "name": "Swim goggles", "notes": "Each person" },
+        { "name": "Rash guard / swim shirt", "notes": "Each person" },
+        { "name": "Cover-up, robe, or oversized T-shirt", "notes": "Each person" },
+        { "name": "Dry underwear", "notes": "Each person" },
+        { "name": "Dry shirt and shorts/pants", "notes": "Each person" },
+        { "name": "Refillable water bottle", "notes": "Each person" },
+        { "name": "Waterproof phone pouches" },
+        { "name": "Wet bags", "quantity": "2-3", "notes": "Shared bag" },
+        { "name": "Gallon zip-top bags", "notes": "Shared bag" },
+        { "name": "Plastic bags for soaked clothes", "notes": "Shared bag" },
+        { "name": "Waterproof sunscreen", "notes": "Shared bag" },
+        { "name": "Lip balm", "notes": "Shared bag" },
+        { "name": "Anti-chafing balm", "notes": "Shared bag" },
+        { "name": "Hairbrush / comb and hair ties", "notes": "Shared bag" },
+        { "name": "Small first-aid pouch", "notes": "Shared bag" },
+        { "name": "Tissues and hand sanitizer", "notes": "Shared bag" },
+        { "name": "Photo ID, payment card, reservation info", "notes": "Shared bag" },
+        { "name": "Needed daytime medications", "notes": "Shared bag" }
+      ]
+    },
+    {
+      "name": "Swim gear",
+      "note": "Two swimsuits each is strongly recommended",
+      "items": [
+        { "name": "Swimsuits", "quantity": "2 each (10 total)", "notes": "One can dry while the other is worn" },
+        { "name": "Rash guard / swim shirt", "quantity": "1 each (5 total)" },
+        { "name": "Water shoes", "quantity": "1 pair each (5 total)" },
+        { "name": "Cover-up / robe / oversized shirt", "quantity": "1 each (5 total)" },
+        { "name": "Swim goggles", "quantity": "1 each" },
+        { "name": "Approved personal life jacket", "notes": "Only if preferred; resort jackets generally available" }
+      ]
+    },
+    {
+      "name": "Clothing",
+      "note": "One extra kid outfit is worth the space",
+      "items": [
+        { "name": "Casual shirts", "quantity": "adults 3 each / kids 4 each" },
+        { "name": "Shorts or pants", "quantity": "adults 2-3 each / kids 3 each" },
+        { "name": "Underwear", "quantity": "adults 4 each / kids 5 each" },
+        { "name": "Socks", "quantity": "adults 3 pairs / kids 4 pairs" },
+        { "name": "Pajamas", "quantity": "adults 1-2 sets / kids 2 sets" },
+        { "name": "Hoodie / sweatshirt / light jacket", "quantity": "1 each" },
+        { "name": "Comfortable dinner / lodge outfit", "quantity": "1 each" },
+        { "name": "Sneakers / walking shoes", "quantity": "1 pair each" },
+        { "name": "Sandals or slip-on shoes", "quantity": "1 pair each" },
+        { "name": "Hat / sunglasses / belt as needed" },
+        { "name": "Laundry bag for dry dirty clothes", "notes": "Shared" },
+        { "name": "Separate waterproof bag for wet swimsuits", "notes": "Shared" },
+        { "name": "A few hangers for drying swimwear", "notes": "Shared" },
+        { "name": "Stain-removal pen or wipes", "notes": "Shared" },
+        { "name": "Small laundry detergent packet", "notes": "Shared; optional" }
+      ]
+    },
+    {
+      "name": "Toiletries",
+      "items": [
+        { "name": "Toothbrushes and toothpaste" },
+        { "name": "Floss / floss picks" },
+        { "name": "Deodorant" },
+        { "name": "Shampoo and conditioner" },
+        { "name": "Body wash / soap" },
+        { "name": "Face wash" },
+        { "name": "Hairbrushes / combs" },
+        { "name": "Hair products and hair ties" },
+        { "name": "Lotion", "notes": "Chlorine can dry skin quickly" },
+        { "name": "Lip balm" },
+        { "name": "Razors / shaving supplies" },
+        { "name": "Glasses" },
+        { "name": "Contacts, case, and solution" },
+        { "name": "Feminine hygiene products" },
+        { "name": "Makeup / skincare" },
+        { "name": "Nail clippers" },
+        { "name": "Cotton swabs" },
+        { "name": "Shower caps", "notes": "If useful" },
+        { "name": "Small room deodorizer", "notes": "Optional" }
+      ]
+    },
+    {
+      "name": "Medications & health supplies",
+      "note": "Keep prescriptions with an adult",
+      "items": [
+        { "name": "All daily prescriptions in original containers" },
+        { "name": "Medication organizer / written schedule" },
+        { "name": "Rescue or as-needed medication" },
+        { "name": "Children's pain / fever medicine" },
+        { "name": "Adult pain reliever" },
+        { "name": "Allergy medicine" },
+        { "name": "Motion-sickness medicine" },
+        { "name": "Upset-stomach medicine / antacid" },
+        { "name": "Thermometer" },
+        { "name": "Adhesive and waterproof bandages" },
+        { "name": "Antibiotic ointment" },
+        { "name": "Hydrocortisone / anti-itch cream" },
+        { "name": "Blister bandages" },
+        { "name": "Electrolyte packets" },
+        { "name": "Insurance cards" },
+        { "name": "Pediatrician and pharmacy information" }
+      ]
+    },
+    {
+      "name": "Lincoln's comfort & sensory backpack",
+      "note": "Keep accessible throughout the trip",
+      "items": [
+        { "name": "Noise-reducing headphones / ear defenders" },
+        { "name": "Familiar blanket, pillow, or comfort item" },
+        { "name": "Fidget / calming item" },
+        { "name": "Sunglasses or hat for bright lighting" },
+        { "name": "Comfortable change of clothes" },
+        { "name": "Preferred snacks" },
+        { "name": "Simple visual schedule" },
+        { "name": "Timer" },
+        { "name": "Plan for quiet breaks" },
+        { "name": "Tablet with downloaded shows / games" },
+        { "name": "Familiar headphones" },
+        { "name": "Tablet charger and power bank" },
+        { "name": "Small quiet activity" },
+        { "name": "Sleep mask", "notes": "If helpful" },
+        { "name": "Familiar toiletries" },
+        { "name": "Night-light / white-noise option" },
+        { "name": "Downloaded content for offline use" }
+      ]
+    },
+    {
+      "name": "Electronics",
+      "items": [
+        { "name": "Phones" },
+        { "name": "Tablets" },
+        { "name": "Headphones for each child" },
+        { "name": "Smartwatches", "notes": "If used" },
+        { "name": "Camera / action camera", "notes": "Optional" },
+        { "name": "Memory cards / spare batteries" },
+        { "name": "Waterproof camera case", "notes": "Optional" },
+        { "name": "Phone and tablet charging cables" },
+        { "name": "Multi-port USB charging hub", "notes": "Better than several wall bricks" },
+        { "name": "Power bank" },
+        { "name": "Watch chargers" },
+        { "name": "Small night-light" },
+        { "name": "White-noise machine / portable fan" },
+        { "name": "Bluetooth speaker", "notes": "Optional" },
+        { "name": "Downloaded movies, audiobooks, and games" }
+      ]
+    },
+    {
+      "name": "Food & hotel-room supplies",
+      "note": "Verify the room fridge/microwave setup",
+      "items": [
+        { "name": "Refillable water bottles" },
+        { "name": "Bottled water" },
+        { "name": "Juice / drink packets" },
+        { "name": "Breakfast bars / cereal / oatmeal cups" },
+        { "name": "Fruit" },
+        { "name": "Crackers / chips / pretzels" },
+        { "name": "Granola bars and individual kid snacks" },
+        { "name": "Emergency familiar foods" },
+        { "name": "Coffee supplies", "notes": "If preferred" },
+        { "name": "Small cooler and ice packs", "notes": "Optional" },
+        { "name": "Paper towels and napkins" },
+        { "name": "Disposable plates, bowls, and utensils" },
+        { "name": "Reusable straws" },
+        { "name": "Zip-top bags" },
+        { "name": "Disinfecting wipes / wet wipes" },
+        { "name": "Trash bags" },
+        { "name": "Collapsible hamper" },
+        { "name": "Reusable shopping tote" },
+        { "name": "Bottle opener", "notes": "If needed" },
+        { "name": "Small dish soap and sponge", "notes": "Optional" }
+      ]
+    },
+    {
+      "name": "Activities & entertainment",
+      "items": [
+        { "name": "Card game" },
+        { "name": "Small travel board game" },
+        { "name": "Coloring supplies" },
+        { "name": "Activity books" },
+        { "name": "Bedtime books" },
+        { "name": "Favorite small toys" },
+        { "name": "MagiQuest wands", "notes": "If already owned" },
+        { "name": "Reusable arcade cards", "notes": "If applicable" },
+        { "name": "Small backpack for each child" },
+        { "name": "Autograph book", "notes": "Optional" },
+        { "name": "Tablets and headphones" },
+        { "name": "A little spending-money plan for each child" }
+      ]
+    },
+    {
+      "name": "Documents, money & reservations",
+      "items": [
+        { "name": "Driver's licenses" },
+        { "name": "Hotel confirmation" },
+        { "name": "Great Wolf Lodge app installed" },
+        { "name": "Package / attraction confirmations" },
+        { "name": "Dining reservations" },
+        { "name": "Screenshot of reservation", "notes": "Useful if reception is poor" },
+        { "name": "Insurance cards" },
+        { "name": "Payment cards" },
+        { "name": "Small amount of cash" },
+        { "name": "Gift cards / discount documentation" },
+        { "name": "Emergency contact information" },
+        { "name": "Vehicle registration / insurance" },
+        { "name": "Roadside-assistance information" },
+        { "name": "Car keys and spare key plan" }
+      ]
+    },
+    {
+      "name": "Car-trip supplies",
+      "items": [
+        { "name": "Car chargers / phone mount" },
+        { "name": "Drinks and road snacks" },
+        { "name": "Travel pillows / small blankets" },
+        { "name": "Downloaded music or audiobooks" },
+        { "name": "Sunglasses" },
+        { "name": "Tissues / wet wipes / hand sanitizer" },
+        { "name": "Car trash bags" },
+        { "name": "Motion-sickness bags" },
+        { "name": "One complete child outfit within reach" },
+        { "name": "One adult shirt within reach" },
+        { "name": "Paper towels" },
+        { "name": "Basic vehicle emergency kit" }
+      ]
+    },
+    {
+      "name": "Departure-day water-park bag",
+      "note": "Pack the night before checkout",
+      "items": [
+        { "name": "Swimsuits" },
+        { "name": "Water shoes" },
+        { "name": "Goggles" },
+        { "name": "Cover-ups" },
+        { "name": "Dry clothes for everyone" },
+        { "name": "Fresh underwear and socks" },
+        { "name": "Wet bags / plastic bags" },
+        { "name": "Small toiletry pouch" },
+        { "name": "Deodorant and hairbrush" },
+        { "name": "Water bottles and snacks" },
+        { "name": "Medications" },
+        { "name": "Wallet / phones / chargers" },
+        { "name": "Car keys" },
+        { "name": "Main luggage loaded into vehicle" }
+      ]
+    },
+    {
+      "name": "Final checks before leaving home",
+      "items": [
+        { "name": "Confirm check-in / water-park access times" },
+        { "name": "Confirm room fridge and microwave" },
+        { "name": "Check weather for travel days" },
+        { "name": "Charge all devices and power banks" },
+        { "name": "Download offline entertainment" },
+        { "name": "Take a photo of packed medications" },
+        { "name": "Set thermostat / lock doors / arrange pets or mail" }
+      ]
+    },
+    {
+      "name": "Leave at home — usually not needed (reference)",
+      "items": [
+        { "name": "Regular pool towels", "notes": "Resort towels are generally provided" },
+        { "name": "Standard life jackets", "notes": "Unless a familiar personal jacket is preferred" },
+        { "name": "Inflatable floaties" },
+        { "name": "Large pool toys" },
+        { "name": "Multiple dressy outfits" },
+        { "name": "Separate suitcase for every person" },
+        { "name": "Excess food that will not fit the room setup" }
+      ]
+    },
+    {
+      "name": "Recommended bag plan (reference)",
+      "items": [
+        { "name": "Bag 1 — Adults", "notes": "Adults' clothes, toiletries, second swimsuits" },
+        { "name": "Bag 2 — Boys", "notes": "Kids' clothes, pajamas, second swimsuits" },
+        { "name": "Bag 3 — Water park", "notes": "Arrival-day swim gear, water shoes, goggles, dry changes, wet bags, medications" },
+        { "name": "Bag 4 — Room / food", "notes": "Snacks, drinks, paper goods, wipes, zip bags, breakfast supplies" },
+        { "name": "Bag 5 — Comfort / tech", "notes": "Tablets, headphones, chargers, power bank, comfort items, quiet activities" }
+      ]
+    }
+  ]
+}

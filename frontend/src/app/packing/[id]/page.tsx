@@ -52,6 +52,11 @@ function PackingListScreen() {
   const [renamingSectionId, setRenamingSectionId] = useState<number | null>(null);
   const [sectionName, setSectionName] = useState("");
 
+  // Destination/duration are typed freely, so they're drafts committed
+  // on blur — unlike the date input, which saves on change.
+  const [destinationDraft, setDestinationDraft] = useState("");
+  const [durationDraft, setDurationDraft] = useState("");
+
   /* Celebrate only on the transition into 100%, not on page load. */
   const prevPercent = useRef<number | null>(null);
 
@@ -60,6 +65,8 @@ function PackingListScreen() {
       .then((d) => {
         prevPercent.current = d.percent;
         setDetail(d);
+        setDestinationDraft(d.destination ?? "");
+        setDurationDraft(d.duration ?? "");
       })
       .catch(() => setMissing(true));
   }, [listId]);
@@ -161,6 +168,30 @@ function PackingListScreen() {
         value ? { event_date: value } : { clear_event_date: true },
       ).catch(() => detail),
     );
+  }
+
+  async function commitDestination() {
+    if (!detail) return;
+    const value = destinationDraft.trim();
+    if (value === (detail.destination ?? "")) return;
+    const next = await updatePackingList(
+      listId,
+      value ? { destination: value } : { clear_destination: true },
+    ).catch(() => detail);
+    apply(next);
+    setDestinationDraft(next.destination ?? "");
+  }
+
+  async function commitDuration() {
+    if (!detail) return;
+    const value = durationDraft.trim();
+    if (value === (detail.duration ?? "")) return;
+    const next = await updatePackingList(
+      listId,
+      value ? { duration: value } : { clear_duration: true },
+    ).catch(() => detail);
+    apply(next);
+    setDurationDraft(next.duration ?? "");
   }
 
   async function toggleReminder() {
@@ -273,6 +304,32 @@ function PackingListScreen() {
           {detail.event_date && countdown && (
             <span className={styles.countdown}>{countdown}</span>
           )}
+        </div>
+        <div className={styles.eventRow}>
+          <label className={styles.eventLabel}>
+            <span className={styles.label}>Destination</span>
+            <input
+              type="text"
+              value={destinationDraft}
+              onChange={(e) => setDestinationDraft(e.target.value)}
+              onBlur={commitDestination}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              placeholder="Where to?"
+              className={styles.input}
+            />
+          </label>
+          <label className={styles.eventLabel}>
+            <span className={styles.label}>How long?</span>
+            <input
+              type="text"
+              value={durationDraft}
+              onChange={(e) => setDurationDraft(e.target.value)}
+              onBlur={commitDuration}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              placeholder="e.g. 5 days"
+              className={styles.input}
+            />
+          </label>
         </div>
         {detail.event_date && (
           <Chip

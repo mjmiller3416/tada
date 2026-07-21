@@ -39,6 +39,11 @@ class PackingList(Base):
     is_template: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     #: Move/trip date — drives the optional countdown reminder.
     event_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: Where the list is headed ("Orlando", "Grandma's") — optional color.
+    destination: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    #: How long, as free text ("5 days", "a long weekend") — a note,
+    #: not math, same philosophy as item quantities.
+    duration: Mapped[str | None] = mapped_column(String(60), nullable=True)
     #: "active" | "archived". Finished lists archive (never delete) so
     #: they can be referenced or cloned again later.
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
