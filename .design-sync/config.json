@@ -1,0 +1,34 @@
+{
+  "projectId": "53b8a41c-19c2-49ac-b5c7-4e2e87424e86",
+  "shape": "package",
+  "pkg": "tada-frontend",
+  "globalName": "TadaUI",
+  "entry": "frontend/src/design-sync.entry.ts",
+  "readmeHeader": ".design-sync/conventions.md",
+  "srcDir": "src/components",
+  "tsconfig": "../.design-sync/tsconfig.sync.json",
+  "cssEntry": "src/app/globals.css",
+  "extraFonts": ["../.design-sync/fonts/nunito.css"],
+  "overrides": {
+    "TaskRow": { "cardMode": "column" }
+  },
+  "componentSrcMap": {
+    "AppShell": "src/components/ui/AppShell.tsx",
+    "Button": "src/components/ui/Button.tsx",
+    "Card": "src/components/ui/Card.tsx",
+    "Chip": "src/components/ui/Chip.tsx",
+    "FocusCard": "src/components/ui/FocusCard.tsx",
+    "ProgressDots": "src/components/ui/ProgressDots.tsx",
+    "Burst": "src/components/ui/Celebration.tsx",
+    "Confetti": "src/components/ui/Celebration.tsx",
+    "DirtinessDot": "src/components/DirtinessDot.tsx",
+    "SnoozeMenu": "src/components/SnoozeMenu.tsx",
+    "TaskRow": "src/components/TaskRow.tsx",
+    "TaskForm": null,
+    "AuthGate": null,
+    "HouseholdSection": null,
+    "KidHome": null,
+    "PushSubscribeButton": null,
+    "ServiceWorkerRegister": null
+  }
+}

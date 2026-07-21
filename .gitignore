@@ -22,6 +22,13 @@ venv/
 !.env.example
 !.env.local.example
 
+# --- design-sync (staged scripts + regenerated build output + machine state) ---
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+
 # --- OS / editor ---
 .DS_Store
 Thumbs.db

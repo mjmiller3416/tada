@@ -55,7 +55,7 @@
   --status-overdue: #b73349;     /* deep raspberry — kept apart from rose coral */
 
   /* ---- Typography: friendly rounded sans, two weights only ---- */
-  --font-sans: var(--font-nunito), "Nunito", ui-rounded, "Segoe UI",
+  --font-sans: var(--font-nunito, "Nunito"), "Nunito", ui-rounded, "Segoe UI",
     system-ui, sans-serif;
   --weight-regular: 500;
   --weight-bold: 800;

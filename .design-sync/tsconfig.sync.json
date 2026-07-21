@@ -1,0 +1,14 @@
+{
+  // Resolution map for the design-sync bundle only (esbuild reads paths from
+  // here; the app's own tsconfig.json is untouched). next/* map to browser
+  // shims so Next client internals stay out of the bundle.
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "paths": {
+      "@/components/ui": ["../frontend/src/components/ui/index.ts"],
+      "@/*": ["../frontend/src/*"],
+      "next/link": ["./shims/next-link.tsx"],
+      "next/navigation": ["./shims/next-navigation.ts"]
+    }
+  }
+}
