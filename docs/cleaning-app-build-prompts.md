@@ -319,7 +319,7 @@ Build:
 
 Keep everything in its own module so it can't affect the cleaning core. Follow the SPEC
 section 8 conventions and summarize what you built when done.
-```
+``
 
 **Phase 4 is done when:** Maryann can create a list from a pre-filled template, see it as a full grouped checklist with progress, check items off, run more than one list at once, archive a finished list, and (optionally) get a countdown reminder before an event date — all without any interaction with the cleaning/decay side of the app.
 
@@ -330,3 +330,538 @@ section 8 conventions and summarize what you built when done.
 - After each phase, do a quick pass on her actual phone before starting the next — the whole design hinges on the phone feel.
 - If a feature starts creeping in scope (the way MealGenie did), park it and finish the phase first.
 - Keep the reward system encouraging-only. If any copy or mechanic starts to feel like it's nagging or shaming, cut it — that betrays the core design.
+
+---
+
+## Phase 4.5 — Bugs & hardening
+
+> Everything here is a bug she's living with right now. No new features, no migrations, no
+> schema changes. Ship this on its own.
+
+```
+Read cleaning-app-spec.md (especially §5 and §8). Build Phase 4.5: bug fixes and hardening
+only. NO new features, NO migrations, NO schema changes. Several of these are UI-only fixes
+to code that already works on the backend — check before building anything new.
+
+Build:
+
+1. HORIZONTAL SCROLL ON THE LISTS PAGES (mobile). The pages scroll sideways on a phone;
+   they should be locked to the viewport width. The CSS applies its guards inconsistently —
+   apply them uniformly rather than patching one spot. Known gaps:
+   - frontend/src/app/packing/packing.module.css: `.eventLine` has no `overflow-wrap: anywhere`,
+     though its siblings `.listName` and `.archivedName` both do.
+   - frontend/src/app/packing/packing.module.css: `.templateTile` sits in a
+     `grid-template-columns: repeat(2, 1fr)` grid with no `min-width: 0`, so a long template
+     name cannot shrink below its content width.
+   - frontend/src/app/packing/[id]/list-detail.module.css: `.eventLabel` has `flex: 1` but no
+     `min-width: 0`, and sits next to `.countdown` which is `white-space: nowrap`.
+   Audit both stylesheets for the same two patterns and fix them all, not just these three.
+   DO NOT use `overflow-x: hidden` on a wrapper element to hide the symptom — it creates a
+   scroll container and will break the sticky section headers planned for Phase 6.
+
+2. DELETE AN ACTIVE LIST. The backend endpoint already exists and works
+   (DELETE /api/packing/lists/{list_id} in backend/app/routers/packing.py — hard delete,
+   cascades to sections/items/reminders, templates protected). The frontend already has
+   `handleDelete` in frontend/src/app/packing/page.tsx. The ONLY problem is that the ✕ button
+   renders exclusively on archived cards, so an active list can't be deleted without archiving
+   it first. Surface delete on the list DETAIL page (not on the index card — avoid fat-finger
+   deletion next to the tap-to-open target). Keep archive as the primary, gentler action and
+   make delete visually secondary. Change the confirm text to name the item count, e.g.
+   "Delete 'Great Wolf Lodge Family Trip' and its 147 items? This can't be undone." — she
+   hand-entered a 147-item list and an accidental delete would be genuinely costly.
+
+3. SKIPPED TASKS GO TO THE BACK OF THE SESSION. Currently, skipping a task and then tapping
+   "keep going" re-serves the same task first. This is NOT a queue-ordering bug: Skip
+   deliberately doesn't log or touch `last_done_at`, so rebuilding the session returns the
+   same unchanged priority ranking, and the skipped task is legitimately still the top one.
+   Fix it client-side in frontend/src/app/session/page.tsx: carry the set of skipped task IDs
+   forward across a rebuild and move those tasks to the end of the queue. If every remaining
+   task has been skipped, end the session gracefully with warm copy rather than looping.
+   CRITICAL: Skip must continue to touch nothing in the decay engine — no `last_done_at`
+   write, no CompletionLog, no snooze. It is presentation only.
+
+4. NOTIFICATION TOGGLE READS "OFF" AFTER A FORCE-CLOSE. Diagnosed and confirmed: this is a
+   pure UI bug. Push delivery, the stored subscription, OS permission, VAPID, and pywebpush
+   are all verified healthy — a push sent while the toggle displayed "not enabled" arrived
+   correctly. The toggle reads `pushManager.getSubscription()` before the service worker is
+   active after a force-close, gets null, and renders "off".
+   Fix: `await navigator.serviceWorker.ready` before reading subscription state anywhere in
+   the settings toggle's read path. Note that frontend/src/lib/push.ts already does this
+   correctly on the SUBSCRIBE path — copy that pattern to the READ path.
+   Also add, as belt-and-braces: on app open, if `Notification.permission === "granted"` but
+   no subscription exists, silently re-subscribe without making her tap anything.
+
+5. CRON ROBUSTNESS (backend/app/cron/send_reminders.py). Three fixes:
+   - `run()` has no try/except around each `_process()` call. One exception on any single
+     reminder aborts the entire run before `db.commit()`, so nothing sends for anyone. Wrap
+     each `_process()` individually, log the failure with the reminder id, and continue.
+   - The cron logs drops ("Reminder N dropped") but logs nothing on a successful send. Add a
+     matching success log line with the reminder id and user. This absence turned two
+     diagnoses into guesswork.
+   - Add `tag: "daily-nudge"` to the daily nudge's showNotification options in
+     frontend/public/sw.js so repeated nudges replace each other instead of stacking up.
+     DO NOT change the `icon` or `badge` paths in sw.js — that's deliberately out of scope.
+
+6. PIN UNIQUENESS IN backend/scripts/seed_owner.py. Login is PIN-only and matches against
+   every user, taking the first hit. backend/app/routers/members.py enforces uniqueness via
+   `_check_pin_free`, but the seed script does not — so seeding a second owner with a
+   colliding PIN would silently log one person in as the other. Mirror the same check in the
+   script and fail with a clear message rather than writing a duplicate.
+
+Follow the SPEC §8 conventions. When done, summarize what you changed, and explicitly list
+anything you found already working that needed no change.
+```
+
+**Phase 4.5 is done when:** the lists pages don't scroll sideways on her phone, an active list
+can be deleted with an item-count confirm, skipped tasks stop jumping back to the front, the
+notification toggle reflects reality after a force-close, one bad reminder can't silence the
+whole cron run, and the seed script refuses a duplicate PIN.
+
+---
+
+## Phase 4.6 — Composition & control
+
+> Almost all of this is UI work over capability the backend already has. Still no migrations.
+
+```
+Read cleaning-app-spec.md (especially §4, §5, §6). Build Phase 4.6: session composition and
+household control. NO migrations — new settings go through the existing per-user key/value
+settings service (backend/app/services/settings_service.py), not new columns.
+
+IMPORTANT: items 1 and 2 are UI-only. `scheduling.build_session()` already accepts `minutes`,
+`room_id`, `zone_id`, and `effort` together, and /session already reads all of them as query
+params. Do not change the scheduling service for these.
+
+Build:
+
+1. TIME SELECTION WHEN STARTING FROM A ROOM. Picking a room currently starts a session with
+   no time budget. Add the same "how much time do you have" chips to the room entry point, so
+   she can scope a room session to 15 minutes. This resolves to
+   /session?room={id}&minutes={n} — the existing flow handles it already.
+
+2. OPTIONAL ZONE FILTER ON "HOW MUCH TIME DO YOU HAVE". Add an optional zone selector to the
+   time-box flow on the home screen, resolving to /session?zone={id}&minutes={n}. Show this
+   control ONLY when the zones overlay is enabled in settings; it must not appear as a dead
+   option for a household that never turned zones on.
+
+3. EDITABLE LAST-DONE DATE. Add "when was this last done?" to the task edit form
+   (frontend/src/components/TaskForm.tsx) and the corresponding PATCH handling. The decay
+   engine already reads `last_done_at` as its only anchor, so this needs NO new scheduling
+   concept — it is exposing a field the engine already consumes. Her use case: "we dusted the
+   entire Lego collection a week ago during the move, so don't tell me it's overdue."
+   Rules:
+   - Cannot be set to a future date.
+   - Setting it must NOT write a CompletionLog — this is a correction to history, not a
+     completion, and it must not inflate the done-today view or streaks in Phase 5.
+   - Clearing it back to null (never done) must be possible.
+   - Warm, plain-language copy — "Last done" not "Reset decay anchor".
+
+4. VACATION MODE. A household-wide pause. Her explicit decision on the semantics: PAUSE THE
+   NUDGES, KEEP THE DECAY RUNNING. She'd rather come home to an honest picture than a fiction.
+   - Store as settings keys (e.g. `vacation_until`, empty = off) through settings_service.
+   - The cron (backend/app/cron/send_reminders.py) skips dispatching ALL reminder types for a
+     user whose vacation window covers the current moment. It should skip, not deactivate —
+     reminders resume by themselves afterwards.
+   - The home screen shows a calm paused state with the return date and a one-tap "I'm back"
+     to end it early. Warm copy, e.g. "Everything's paused until Aug 3. Have a good trip 🌴"
+   - CRITICAL: this must NOT touch `dirtiness_ratio`, `rank_tasks`, or anything else in
+     backend/app/services/scheduling.py. Decay continues exactly as normal throughout. That
+     isolation is why this phase needs no tests.
+   - Leave a clear seam for Phase 5, which will freeze streaks across the same window.
+
+5. "ADD AN ADULT" IN SETTINGS. Owner accounts can currently only be created by
+   backend/scripts/seed_owner.py. Add a UI in the Settings → Your crew section
+   (frontend/src/components/HouseholdSection.tsx) to create a second `role="owner"` account
+   with a name and PIN.
+   Notes:
+   - Shared access already works — no data is scoped per user, and `require_owner` only checks
+     the role — so a second owner sees the same tasks, rooms, supplies, and lists. Nothing
+     needs to change for that.
+   - backend/app/routers/members.py currently guards with `_get_kid`, which 404s on non-kid
+     users. Extend it to manage owner accounts too (create, rename, change PIN), reusing the
+     existing `_check_pin_free` check.
+   - Block deleting the last remaining owner.
+   - Make the difference plain in the copy: an adult sees and can change everything; a kid
+     sees only their chores.
+
+6. ASSIGNEE FILTER ON /tasks, DEEP-LINKED FROM YOUR CREW. She wants to tap a person and see
+   what's assigned to them. frontend/src/app/tasks/page.tsx already filters by room, effort,
+   and category entirely client-side, and TaskRow already renders `assignee_name` — so this
+   is frontend-only. Add an assignee filter alongside the existing filter chips, and make each
+   row in Settings → Your crew link to /tasks filtered to that person.
+   Note: task assignment and the exclusion of delegated tasks from her own surfaces are
+   ALREADY BUILT and working (`for_user_id=current_user.id` is passed in /focus and
+   /sessions/build; tasks assigned to someone else are already filtered out). Do not rebuild
+   that. This item is only about giving her a way to look.
+
+Follow SPEC §8 conventions. When done, summarize what you built and list anything you found
+already working that needed no change.
+```
+
+**Phase 4.6 is done when:** she can pick a room *and* a time, optionally scope a timed session
+to a zone, correct a task's last-done date, pause everything while away without decay
+freezing, add a second adult from Settings, and tap a person to see their assigned tasks.
+
+---
+
+## Phase 5 — Rewards & Done Today
+
+> This closes the one real gap the code review found. The `User` model has carried
+> `current_streak`, `longest_streak`, and `last_active_date` since Phase 0, and nothing has
+> ever written to them. Badges have no tables at all. Everything here is additive and
+> positive-only, so it cannot destabilize what she uses daily.
+
+```
+Read cleaning-app-spec.md, especially §5 (gamification — badges not levels, forgiving
+streaks, no guilt) and §4 (the decay engine). Build Phase 5: the reward system and the
+"what did I get done today" view.
+
+CONTEXT — why this is missing: SPEC §7 said badges would seed in Phase 1, but the Phase 1
+build prompt never listed badges or streak-updating, and no later phase did either. The
+schema fields exist and sit at 0 permanently. `scheduling.complete_task()` resets the decay
+curve and writes a CompletionLog, then stops. That function is the seam for all of this.
+
+Build:
+
+1. MIGRATION (additive, follows 0006): two new tables.
+   - `badges`: id, code (unique slug), name, description, emoji, criteria_key, sort_order
+   - `user_badges`: id, user_id -> users, badge_id -> badges, earned_at
+     Unique constraint on (user_id, badge_id) — a badge is earned once and never revoked.
+   Do not alter any existing table.
+
+2. STREAK TRACKING, wired into the existing `scheduling.complete_task()` seam.
+   A "day" means a calendar day in the user's local timezone (from their settings), not UTC.
+   On each completion, for the completing user:
+   - If `last_active_date` is today: no change (the day is already counted).
+   - If `last_active_date` is null: `current_streak = 1`.
+   - Otherwise compute the gap in days between `last_active_date` and today, EXCLUDING any
+     days that fall inside a vacation window (Phase 4.6). Then:
+       - effective gap of 1 day  -> current_streak += 1
+       - effective gap of 2 days -> current_streak += 1  (one missed day is forgiven — this
+         is the SPEC §5 grace day; the missed day itself earns no credit)
+       - effective gap of 3+ days -> current_streak = 1
+   - Always set `last_active_date` to today and
+     `longest_streak = max(longest_streak, current_streak)`.
+   VACATION FREEZE: days inside a vacation window are neutral — not a break to make up, and
+   not credit either. Back from eight days away, her streak reads exactly what it did when
+   she left. She asked for this explicitly.
+   TONE: a broken streak is never announced, never explained, never apologised for. The UI
+   shows the current number and nothing else. No "you lost your streak", no "don't break the
+   chain", no warnings that a streak is at risk.
+
+3. BADGES: model, service, and seed set. Keep the award logic in its own service, evaluated
+   after a completion and again at session complete. It must be idempotent — never award
+   twice, never revoke. Seed at least these, all computable from CompletionLog + User:
+   - first_task       — first completion ever
+   - tasks_10 / tasks_50 / tasks_100 — cumulative completions
+   - streak_3 / streak_7 / streak_30 — streak milestones
+   - session_first    — first focus session completed start to finish
+   - guest_rescue     — first completion with source "guest_mode"
+   - zone_first       — first completion with source "zone"
+   - campaign_first   — first campaign finished
+   - early_bird       — a completion before 8am local time
+   Warm, specific, playful names and copy — these are small gifts, not certifications.
+   Wire the award check into the session-complete flow the SPEC §5 focus session already
+   describes ("session-complete celebration + badge check"): the celebration exists today,
+   the check does not.
+
+4. DONE TODAY VIEW. A new screen showing what she has finished today, read entirely from the
+   existing CompletionLog (no new tracking needed):
+   - Each completion: task name, room chip, time, and who did it when more than one member is
+     active in the household.
+   - Her current streak, shown warmly.
+   - Badges earned, with anything new since last visit highlighted.
+   - CRITICAL: accumulation ONLY. Never a denominator, never a percentage, never "5 of 14",
+     never a target. A denominator turns a reward into a scoreboard and inverts the entire
+     no-guilt design. Show what she did, full stop.
+   - Empty state is calm and unbothered, e.g. "Nothing logged yet today — the day's still
+     young ✨". It must never read as a reproach.
+   - NOTHING COMPARATIVE ANYWHERE. No side-by-side streaks, no who-did-more, no household
+     leaderboard. Attribution answers "is this handled", never "who's pulling their weight".
+
+5. HOME SCREEN GAINS EXACTLY ONE NEW ELEMENT: the entry point to the Done Today view. This
+   is a hard constraint, not a preference. The calm home screen is the product. Streaks and
+   badges live inside the Done Today view, NOT on the home screen.
+
+6. SESSION TIMER. When she starts a timed session ("I have 20 minutes"), optionally run a
+   timer that alerts her when the time is up.
+   - Route it through the existing Reminder + cron plumbing (a reminder scheduled at
+     now + N minutes), NOT a browser/JS timer — a JS timer dies when the screen sleeps, and
+     she is cleaning with the phone in her pocket.
+   - "Extend" adds more time: reschedule the reminder AND top up the session queue with
+     additional tasks that fit the added minutes. Extending must never leave her with time
+     and nothing to do.
+   - The alert reads as a win, never as a failure to finish: "That's 20 minutes — look at
+     what you got done 🎉", not "Time's up". She asked specifically for a congratulations
+     message here.
+   - The timer must never auto-close or auto-end her session. She decides when she's done.
+
+Everything in this phase is positive-only and additive. If any copy or mechanic starts to
+feel like nagging, scolding, or scorekeeping, cut it — that betrays the core design.
+
+Follow SPEC §8 conventions. When done, summarize what you built.
+```
+
+**Phase 5 is done when:** completing a task actually moves her streak, a missed day doesn't
+break it, a vacation doesn't either, badges are earned and celebrated at session complete, and
+she can tap one new thing on the home screen to see everything she got done today — with no
+denominator anywhere.
+
+---
+
+## Phase 6 — Lists generalization
+
+> Maryann uses packing lists constantly and wants them for everything checklist-shaped:
+> school supplies, Christmas and birthday gift lists, and one-off task lists with no time
+> pressure. None of those need recurrence, due dates, or reminders — so this is a
+> generalization of what exists, not a new system.
+
+```
+Read cleaning-app-spec.md (§5 design system, §6 feature reference) and the Phase 4 packing
+section of cleaning-app-build-prompts.md. Build Phase 6: generalize the packing module into
+a general-purpose lists module.
+
+SCOPE DISCIPLINE: "anything checklist-shaped" is unbounded. Build exactly what is listed
+below. Do NOT add recurrence, due dates, subtasks, tags, search, attachments, or sharing —
+none of her use cases need any of it.
+
+HARD BOUNDARY: list items must NEVER surface on the daily focus home screen or in a focus
+session. Cleaning tasks recur and decay; list items are done once and gone. The home screen
+holding only the top 1–3 decaying tasks IS the "guide, don't list" principle (SPEC §1), and
+letting arbitrary to-dos leak in is the one way this revamp could damage the core.
+
+Build:
+
+1. RENAME, via a data-preserving migration. PackingList -> List, PackingSection -> ListSection,
+   PackingItem -> ListItem; tables packing_lists -> lists, packing_sections -> list_sections,
+   packing_items -> list_items; the reminders FK packing_list_id -> list_id. Use ALTER TABLE
+   RENAME so existing rows survive — she has live lists in there, including a 147-item one
+   she entered by hand. Update routes (/api/packing -> /api/lists), services, frontend pages
+   (/packing -> /lists), and the nav label "Packing" -> "Lists". Keep a redirect from the old
+   frontend route so her home-screen shortcut doesn't break.
+
+2. REPLACE THE CATEGORY ENUM WITH A `kind`. The 10-value packing category becomes
+   kind: "packing" | "shopping" | "tasks" | "custom". Migrate every existing value to
+   "packing" except "custom", which stays "custom" — the seeded templates keep their own
+   names ("Moving", "Travel"), so no identity is lost. `kind` drives small presentation
+   differences only:
+   - packing: sections, quantity secondary
+   - shopping: quantity and price prominent
+   - tasks: flat single-section feel
+   - custom: no opinion
+
+3. HIDE THE SECTION HEADER WHEN A LIST HAS ONLY ONE SECTION. This is what makes a one-off
+   task list read as a plain list instead of a form, reusing the structure already there.
+
+4. COLLAPSIBLE SECTIONS. Her Great Wolf Lodge list is large enough that scrolling it became
+   tedious.
+   - Persist collapse state in localStorage, keyed per list. NOT in the database: this is a
+     per-device view preference — collapsed on her phone while packing, expanded on the
+     Chromebook while planning — so syncing it across devices would be actively wrong.
+   - A collapsed section header still shows its progress count ("Clothes · 8 of 12"), so
+     collapsing hides items, never information.
+   - Add "Collapse all / Expand all" to the existing `.toolbar` in the list detail page.
+   - Auto-collapse a section when it reaches 100%, on the TRANSITION only — never on load,
+     so unchecking something doesn't fight her. A big list visibly shrinking as she works is
+     the intended feeling.
+   - Sticky section headers are a good companion here. If you add them, make sure nothing in
+     the ancestor chain sets `overflow-x: hidden` (see Phase 4.5 item 1).
+
+5. PRICES AND RUNNING TOTALS. Add a nullable `price` column, Numeric(10,2), to list items —
+   never a float for money. Compute totals in the read model alongside the existing
+   packed_count/total_count/percent; do not store them.
+   - Show the total ONLY when at least one item on the list has a price, or every packing
+     list sprouts a pointless $0.00.
+   - Show two figures: the list total and the checked total. On a shopping list, checked
+     means bought, so the checked total reads as spend-to-date — "$340 of $500".
+   - This is deliberately self-contained. A future budget app will consume these per-item
+     prices via a one-way push modeled on the MealGenie integration, but build NOTHING toward
+     that here: no budget model, no category link, no external calls.
+
+6. NEW STARTER TEMPLATES, seeded the same way the packing templates are: school supplies,
+   Christmas gifts, birthday. Gift lists need no schema beyond what now exists — "Emma — Lego
+   set — $40" fits name, notes, and price.
+
+7. AMEND SPEC §6. It currently states flatly that Tada has no shopping list of its own
+   (supplies push to MealGenie's). One-off shopping lists contradict that line as written.
+   Add the distinction explicitly: MealGenie's list is an ongoing replenishment stream, while
+   a Christmas or school-supply list is a finite project that gets finished and archived.
+   State plainly that these lists do NOT push to MealGenie, so a future session doesn't
+   helpfully invent that integration.
+
+Follow SPEC §8 conventions. When done, summarize what you built, and confirm explicitly that
+existing list data survived the rename.
+```
+
+**Phase 6 is done when:** "Packing" is "Lists", her existing lists survived intact, she can
+make a school-supply or gift list from a template, collapse sections on her phone and have it
+stick, and see a running total on the lists where she's entered prices.
+
+---
+
+## Phase 7 — Decay engine test suite
+
+> The decay engine is the architectural spine. It's the one module where a silent regression
+> quietly corrupts every priority in the app, and it currently has no tests. It's also pure
+> logic with an injectable `now` on every function, so this is cheap. This phase gates Phase 8.
+
+```
+Read cleaning-app-spec.md §4 (the decay engine) carefully — it is the specification these
+tests encode. Build Phase 7: a unit test suite for backend/app/services/scheduling.py.
+
+CRITICAL INSTRUCTION: these tests document CURRENT behavior against SPEC §4. If a test
+reveals a genuine discrepancy between the code and the spec, STOP and report it in your
+summary. Do NOT silently "fix" the engine — it is running in production for a real user, and
+a review in July 2026 found it matches SPEC §4 exactly. A failing test is far more likely to
+be a wrong test than a wrong engine.
+
+Set up pytest with whatever fixtures are needed. The pure functions need no database — build
+plain Task objects and pass an explicit `now`. For the query-backed functions, an in-memory
+SQLite session is fine if the models are compatible; otherwise use a transactional fixture.
+
+Cover:
+
+1. `dirtiness_ratio`: at zero elapsed time, at exactly one cadence, at fractional cadences,
+   well past cadence, and for a never-done task (`last_done_at` is null). Include a
+   1-day-cadence task and a 365-day-cadence task, since those are the extremes she actually has.
+
+2. Band boundaries: fresh / aging / due / overdue, tested exactly ON each threshold and just
+   either side of it. Off-by-one at a band edge is the most likely silent regression, and the
+   band drives every color and every copy string in the UI.
+
+3. `rank_tasks`: ordering by priority, every tie-break in SPEC §4 applied in the right order,
+   and stability when two tasks are genuinely identical. Include the daily-cadence boost.
+
+4. Never-done handling: a task with `last_done_at = null` sorts where the spec says it should,
+   and does not blow up any calculation.
+
+5. `room_aggregate_ratio`: the max/average blend from SPEC §4 — one filthy task colors a room
+   without a single red drowning nine greens. Test the empty-room case (returns None).
+
+6. `is_snoozed`: before, exactly at, and after the snooze expiry; and confirm a snooze does
+   NOT alter `last_done_at` or the underlying ratio — the task keeps aging quietly.
+
+7. `candidate_tasks` filters, each independently and in combination: the BAND_AGING freshness
+   gate, `room_id`, `zone_id`, `effort`, `guest_only` (guest-facing AND quick only), and
+   `for_user_id` (tasks assigned to a DIFFERENT member are excluded; her own and unassigned
+   tasks still surface).
+
+8. `build_session`: the greedy time-budget fill takes highest priority first and never
+   exceeds the budget; the MAX_SESSION_TASKS cap holds; and the no-budget room case returns
+   priority order.
+
+9. `complete_task`: resets the decay curve, clears any snooze, and writes a CompletionLog.
+   (After Phase 5, also that it updates the streak — extend these tests then.)
+
+No production code changes in this phase unless you find and report a real spec violation
+first. Follow SPEC §8 conventions. When done, summarize coverage and flag anything surprising.
+```
+
+**Phase 7 is done when:** the engine has real unit tests, they pass, and any discrepancy
+against SPEC §4 has been reported rather than quietly patched.
+
+---
+
+## Phase 8 — Preferred-day boost
+
+> Her example: laundry is a Saturday thing, done all at once. This is the one request that
+> genuinely tests the architecture, because Tada is deliberately decay-driven and NOT a
+> calendar. Built as a boost it fits perfectly; built as a schedule it would make the decay
+> engine decorative. Do not start this before Phase 7.
+
+```
+Read cleaning-app-spec.md §1 (decay, not a calendar) and §4 (the decay engine). Build Phase 8:
+an optional preferred-day priority boost. Phase 7's test suite must exist first.
+
+THE DESIGN CONSTRAINT, read this before anything else: this is a BOOST, not a SCHEDULE.
+Tada has no due dates by design — a task's priority is a gradient driven by time since it was
+last done. A hard day-of-week schedule would put a calendar in direct conflict with the decay
+engine, and there would be no good answer to "she did laundry on Wednesday, does Saturday
+still fire?" With a boost there is: the task decays normally all week, so by Saturday it's
+fresh and simply doesn't surface. Nothing ever becomes "overdue" or "missed".
+
+Build:
+
+1. MIGRATION (additive): a nullable `preferred_day` on tasks — small integer, Python
+   `weekday()` convention (Monday = 0 ... Sunday = 6), null meaning no preference. Null must
+   remain the default and the overwhelmingly common case.
+
+2. THE BOOST, in `rank_tasks`. Her rule exactly: boost on the preferred day AND on the
+   following day as a grace day, then nothing until the preferred day comes round again. For
+   laundry set to Saturday: boosted Saturday, boosted Sunday if it didn't happen, then quiet
+   until the next Saturday. "Today" means her local timezone day, not UTC.
+   - Implement as a strong ADDITIVE boost to the priority score — NOT a hard pin to position
+     one. A pin would bury a genuinely neglected task behind laundry, and it gives no ordering
+     at all between two tasks that share a preferred day. The boost should be large enough
+     that laundry leads on Saturday in normal conditions, while something truly neglected can
+     still edge above it.
+   - Multiple tasks may share a preferred day; they boost equally and order among themselves
+     by normal decay priority.
+   - The task decays normally throughout — the boost changes ranking only, never
+     `dirtiness_ratio`, `last_done_at`, or any band.
+   - Missing the preferred day carries NO penalty and produces no overdue state, no different
+     copy, and no notification.
+
+3. UI in the task form: an optional day-of-week picker, clearly optional and clearly not a
+   deadline. Copy should read like a preference, e.g. "Usually a Saturday job" — never
+   "Due Saturday" or "Scheduled for Saturday".
+
+4. EXTEND THE PHASE 7 TESTS to cover the boost: on the preferred day, on the grace day, on
+   an ordinary day, two tasks sharing a preferred day, and the case where a badly neglected
+   task without a preferred day still outranks a boosted fresh one.
+
+Follow SPEC §8 conventions. When done, summarize what you built and confirm the decay engine's
+existing tests still pass unchanged.
+```
+
+**Phase 8 is done when:** laundry leads the list on Saturday and again on Sunday if it didn't
+happen, then waits quietly for next Saturday — and nothing anywhere in the app has become a
+deadline.
+
+---
+
+## Deferred and cut
+
+**Notification badge icon — deferred (on the backburner, not forgotten).** The status-bar icon
+renders as a blank square. Diagnosed: `frontend/public/sw.js` sets `badge: "/icons/icon-192.png"`,
+but Android masks the badge and derives a silhouette from the alpha channel alone. The 192 icon
+is `"purpose": "any maskable"`, so it's fully opaque and the silhouette is a square. The fix is
+a dedicated 96×96 monochrome white-on-transparent PNG, then pointing `badge` at it. Also worth
+checking whether `/icons/icon-192.png` is still a Phase 0 placeholder. Explicitly excluded from
+Phase 4.5.
+
+**Third effort tier — cut.** She felt there was a middle ground between Quick Wins and Deep
+Clean but couldn't name an example, and said she can go without. It's also the most expensive
+item on the list: `effort` is a two-value enum threaded through the model, roughly 100 seeded
+starter tasks, guest mode's `effort == "quick"` filter, the task form, and the home chips.
+Worth noting *why* it feels wrong to her — effort is about energy but the data conflates it
+with duration (a 20-minute "fold laundry" is tagged quick; a 10-minute washer run is tagged
+deep). Revisit only with three concrete examples in hand, and migrate by rule rather than
+re-tagging by hand.
+
+**Budget app integration — deferred by design.** Phase 6 adds per-item prices, which is the
+foundation. When the budget app exists, model the link on the MealGenie integration: one-way
+push, shared API key from env, upsert on the receiving end, failures swallowed. Expose the
+external line-item endpoint in the budget app's own Phase 1 so it's a design input rather than
+a retrofit. Keep the budget app owning budgets and spend, and Tada owning items and checkoffs —
+a nullable `budget_category_id` on a list is the entire link. Avoid two-way sync.
+
+**Already built — do not rebuild.** Task assignment and the exclusion of delegated tasks from
+her surfaces work today (`for_user_id=current_user.id` is passed in `/focus` and
+`/sessions/build`; tasks assigned to someone else are already filtered out). Shared multi-user
+access also already works — no data is scoped per user and `require_owner` only checks role,
+so a second owner account sees everything she sees.
+
+---
+
+## Working notes
+
+- Test on her actual phone between phases. The design hinges on the phone feel, and three of
+  the bugs in Phase 4.5 were only visible there.
+- If a feature starts creeping in scope, park it and finish the phase first.
+- Keep the reward system encouraging-only. If any copy or mechanic starts to feel like it's
+  nagging or shaming, cut it — that betrays the core design.
+- The home screen is the product. Phase 5 adds exactly one element to it; nothing else in
+  these phases may add another.
+- Every build prompt here carries an explicit feature checklist on purpose. The badge system
+  went unbuilt for four phases because it lived in the spec but never in a prompt.
