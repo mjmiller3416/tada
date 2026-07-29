@@ -38,6 +38,30 @@ from app.services.push_service import push_to_user
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("cron.send_reminders")
 
+# Notifications sharing a tag replace each other on the device, so
+# repeated daily nudges never stack up in the tray.
+DAILY_NUDGE_TAG = "daily-nudge"
+
+
+def _send(
+    db: Session,
+    reminder: Reminder,
+    user: User,
+    title: str,
+    body: str,
+    tag: str | None = None,
+) -> None:
+    """Push and log. Every successful send gets a log line to mirror the
+    drop lines — silence here has turned diagnoses into guesswork."""
+    sent = push_to_user(db, user.id, title, body, tag=tag)
+    logger.info(
+        "Reminder %d sent to user %d (%s): %d push(es) delivered",
+        reminder.id,
+        user.id,
+        user.name,
+        sent,
+    )
+
 
 def _process(db: Session, reminder: Reminder, now: datetime) -> None:
     user = db.get(User, reminder.user_id)
@@ -67,7 +91,7 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> None:
             logger.info("Reminder %d dropped (event date passed)", reminder.id)
             return
         title, body = composed
-        push_to_user(db, user.id, title, body)
+        _send(db, reminder, user, title, body)
         reminder.last_sent_at = now
         packed, total = packing_service.progress(packing_list)
         if total and packed == total:
@@ -88,7 +112,7 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> None:
             reminder.active = False
             logger.info("Reminder %d dropped (task done or gone)", reminder.id)
             return
-        push_to_user(db, user.id, reminder.title, reminder.body)
+        _send(db, reminder, user, reminder.title, reminder.body)
         reminder.last_sent_at = now
         reminder.active = False
         return
@@ -96,13 +120,13 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> None:
     if reminder.recurrence_rule == reminder_service.DAILY_RULE:
         # Daily nudge: decay-aware content, then roll to tomorrow.
         title, body = reminder_service.compose_daily_nudge(db, user)
-        push_to_user(db, user.id, title, body)
+        _send(db, reminder, user, title, body, tag=DAILY_NUDGE_TAG)
         reminder.last_sent_at = now
         reminder_service.advance_daily_nudge(db, reminder, user)
         return
 
     # Plain one-shot reminder.
-    push_to_user(db, user.id, reminder.title, reminder.body)
+    _send(db, reminder, user, reminder.title, reminder.body)
     reminder.last_sent_at = now
     reminder.active = False
 
@@ -118,9 +142,18 @@ def run() -> None:
         logger.info("Checked reminders at %s: %d due", now.isoformat(), len(due))
 
         for reminder in due:
-            _process(db, reminder, now)
-
-        db.commit()
+            # One bad reminder must never silence the rest of the run.
+            # Each reminder commits on its own so a failure rolls back
+            # only its own changes — and can't leave the session in a
+            # broken state for the reminders after it.
+            try:
+                _process(db, reminder, now)
+                db.commit()
+            except Exception:
+                logger.exception(
+                    "Reminder %d failed; continuing with the rest", reminder.id
+                )
+                db.rollback()
     finally:
         db.close()
 

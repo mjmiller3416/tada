@@ -23,6 +23,12 @@ self.addEventListener("push", (event) => {
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
   };
+  // Notifications sharing a tag replace each other instead of stacking —
+  // the backend sends tag "daily-nudge" on the morning nudge so missed
+  // days never pile up in the tray.
+  if (data.tag) {
+    options.tag = data.tag;
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

@@ -7,6 +7,7 @@ import {
   addPackingItem,
   addPackingSection,
   deletePackingItem,
+  deletePackingList,
   deletePackingSection,
   updatePackingItem,
   updatePackingList,
@@ -208,6 +209,24 @@ function PackingListScreen() {
     const next = detail.status === "active" ? "archived" : "active";
     apply(await updatePackingList(listId, { status: next }).catch(() => detail));
     if (next === "archived") router.push("/packing");
+  }
+
+  async function handleDeleteList() {
+    if (!detail) return;
+    // Name the stakes: she has hand-entered lists past 100 items, and an
+    // accidental delete would be genuinely costly.
+    const count = detail.total_count;
+    const message =
+      count > 0
+        ? `Delete “${detail.name}” and its ${count} ${count === 1 ? "item" : "items"}? This can't be undone — archiving keeps it around instead.`
+        : `Delete “${detail.name}”? This can't be undone — archiving keeps it around instead.`;
+    if (!window.confirm(message)) return;
+    try {
+      await deletePackingList(listId);
+      router.push("/packing");
+    } catch {
+      // Nothing was deleted — stay on the list.
+    }
   }
 
   if (missing) {
@@ -547,6 +566,18 @@ function PackingListScreen() {
           </Button>
         )}
       </div>
+
+      {/* Deliberately quiet and far from the tap targets: archive stays
+          the primary way to finish with a list. */}
+      {editMode && (
+        <button
+          type="button"
+          className={styles.deleteList}
+          onClick={handleDeleteList}
+        >
+          Delete this list…
+        </button>
+      )}
     </AppShell>
   );
 }

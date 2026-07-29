@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
@@ -35,7 +35,7 @@ export default function SessionPage() {
   );
 }
 
-type Phase = "loading" | "empty" | "active" | "complete";
+type Phase = "loading" | "empty" | "active" | "complete" | "allSkipped";
 
 type Mode = "focus" | "guest" | "zone" | "campaign";
 
@@ -99,6 +99,13 @@ function SessionScreen() {
   const [doneMinutes, setDoneMinutes] = useState(0);
   const [confetti, setConfetti] = useState(false);
 
+  // Skip is presentation only — it never logs, snoozes, or touches
+  // last_done_at — so a rebuild ("Keep going") returns the same ranking
+  // with the skipped task legitimately still on top. Remembering what
+  // she skipped lets us serve fresh tasks first without ever telling
+  // the decay engine about it.
+  const skippedIdsRef = useRef<Set<number>>(new Set());
+
   const build = useCallback(() => {
     setPhase("loading");
     setIndex(0);
@@ -116,8 +123,19 @@ function SessionScreen() {
       guest: isGuest || undefined,
     })
       .then((session) => {
-        setTasks(session.tasks);
-        setPhase(session.tasks.length > 0 ? "active" : "empty");
+        const skipped = skippedIdsRef.current;
+        const fresh = session.tasks.filter((task) => !skipped.has(task.id));
+        const deferred = session.tasks.filter((task) => skipped.has(task.id));
+        if (session.tasks.length === 0) {
+          setPhase("empty");
+        } else if (fresh.length === 0) {
+          // Everything left is something she already skipped — don't
+          // loop her through it again.
+          setPhase("allSkipped");
+        } else {
+          setTasks([...fresh, ...deferred]);
+          setPhase("active");
+        }
       })
       .catch(() => setPhase("empty"));
   }, [minutesParam, roomParam, effortParam, zoneParam, campaignParam, isGuest]);
@@ -139,8 +157,14 @@ function SessionScreen() {
     // Log it, but never block her flow on the network — the card has
     // already celebrated.
     completeTask(task.id, copy.source).catch(() => {});
+    skippedIdsRef.current.delete(task.id);
     setDoneCount((n) => n + 1);
     setDoneMinutes((m) => m + task.estimated_minutes);
+    advance();
+  }
+
+  function handleSkip(task: Task) {
+    skippedIdsRef.current.add(task.id);
     advance();
   }
 
@@ -198,8 +222,22 @@ function SessionScreen() {
             current={index + 1}
             total={tasks.length}
             onDone={() => handleDone(current)}
-            onSkip={advance}
+            onSkip={() => handleSkip(current)}
           />
+        )}
+
+        {phase === "allSkipped" && (
+          <Card padding="lg" className={styles.endCard}>
+            <p className={styles.bigEmoji}>🌙</p>
+            <h2 className={styles.endTitle}>The rest can wait</h2>
+            <p className={styles.endBody}>
+              Everything left is something you set aside — and “not now” is
+              a perfectly good answer. It’ll all be here when you’re ready 💛
+            </p>
+            <Button variant="primary" size="lg" fullWidth onClick={() => router.push("/")}>
+              Back home
+            </Button>
+          </Card>
         )}
 
         {phase === "complete" && (

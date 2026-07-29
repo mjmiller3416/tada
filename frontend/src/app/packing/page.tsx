@@ -125,8 +125,12 @@ function PackingScreen() {
   }
 
   async function handleDelete(list: PackingListSummary) {
-    if (!window.confirm(`Delete “${list.name}” for good? Archiving keeps it around instead.`))
-      return;
+    const count = list.total_count;
+    const message =
+      count > 0
+        ? `Delete “${list.name}” and its ${count} ${count === 1 ? "item" : "items"}? This can't be undone.`
+        : `Delete “${list.name}”? This can't be undone.`;
+    if (!window.confirm(message)) return;
     await deletePackingList(list.id).catch(() => {});
     load();
   }

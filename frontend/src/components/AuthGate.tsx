@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, type CurrentUser } from "@/lib/api";
+import { ensurePushSubscription } from "@/lib/push";
+
+// Once per app load, not per page — the self-heal below only needs to
+// run when the app opens.
+let pushEnsuredThisLoad = false;
 
 type State =
   | { status: "loading" }
@@ -41,6 +46,16 @@ export default function AuthGate({
       cancelled = true;
     };
   }, []);
+
+  // Belt-and-braces (Phase 4.5): if permission is granted but the
+  // subscription has been lost, quietly re-subscribe on app open —
+  // needs an authenticated session, hence it lives here.
+  useEffect(() => {
+    if (state.status === "authenticated" && !pushEnsuredThisLoad) {
+      pushEnsuredThisLoad = true;
+      void ensurePushSubscription();
+    }
+  }, [state.status]);
 
   const kidBlocked =
     ownerOnly && state.status === "authenticated" && state.user.role !== "owner";

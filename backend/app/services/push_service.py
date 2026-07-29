@@ -12,19 +12,33 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 
-def send_push(subscription: PushSubscription, title: str, body: str, db: Session) -> bool:
+def send_push(
+    subscription: PushSubscription,
+    title: str,
+    body: str,
+    db: Session,
+    tag: str | None = None,
+) -> bool:
     """Sends one Web Push notification. Returns False (and removes the
     subscription) if the push service reports it's gone/expired, which is
-    the normal way subscriptions die — no manual cleanup needed elsewhere."""
+    the normal way subscriptions die — no manual cleanup needed elsewhere.
+
+    `tag` rides the payload for the service worker's showNotification:
+    notifications sharing a tag replace each other instead of stacking
+    (used by the daily nudge)."""
     subscription_info = {
         "endpoint": subscription.endpoint,
         "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
     }
 
+    payload: dict[str, str] = {"title": title, "body": body}
+    if tag:
+        payload["tag"] = tag
+
     try:
         webpush(
             subscription_info=subscription_info,
-            data=json.dumps({"title": title, "body": body}),
+            data=json.dumps(payload),
             vapid_private_key=settings.vapid_private_key,
             vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
         )
@@ -40,7 +54,9 @@ def send_push(subscription: PushSubscription, title: str, body: str, db: Session
         return False
 
 
-def push_to_user(db: Session, user_id: int, title: str, body: str) -> int:
+def push_to_user(
+    db: Session, user_id: int, title: str, body: str, tag: str | None = None
+) -> int:
     """Push to every subscription (phone + Chromebook) a user has.
     Returns how many sends succeeded."""
     subscriptions = db.scalars(
@@ -49,7 +65,7 @@ def push_to_user(db: Session, user_id: int, title: str, body: str) -> int:
     return sum(
         1
         for subscription in subscriptions
-        if send_push(subscription, title=title, body=body, db=db)
+        if send_push(subscription, title=title, body=body, db=db, tag=tag)
     )
 
 

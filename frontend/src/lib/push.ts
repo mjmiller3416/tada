@@ -54,3 +54,46 @@ export async function enablePushNotifications(): Promise<void> {
     keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
   });
 }
+
+/**
+ * Whether this device is currently subscribed to push. Waits for the
+ * service worker to be ACTIVE before reading — right after a force-close,
+ * `getSubscription()` returns null until activation finishes, which made
+ * the settings toggle read "off" while pushes were in fact arriving.
+ * (Same `serviceWorker.ready` pattern the subscribe path above uses.)
+ */
+export async function isPushEnabled(): Promise<boolean> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return false;
+  }
+  if (!("Notification" in window) || Notification.permission !== "granted") {
+    return false;
+  }
+  // Without a registration, `serviceWorker.ready` would wait forever.
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) return false;
+  const ready = await navigator.serviceWorker.ready;
+  return (await ready.pushManager.getSubscription()) !== null;
+}
+
+/**
+ * Belt-and-braces on app open: if notification permission is granted but
+ * this device has lost its subscription (browser eviction, cleared
+ * storage), quietly re-subscribe without her tapping anything. Does
+ * nothing — and asks nothing — when permission was never granted.
+ */
+export async function ensurePushSubscription(): Promise<void> {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") {
+      return;
+    }
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+    if (await registration.pushManager.getSubscription()) return;
+    // Permission is already granted, so this runs prompt-free.
+    await enablePushNotifications();
+  } catch {
+    // A background self-heal — never surface an error for it.
+  }
+}

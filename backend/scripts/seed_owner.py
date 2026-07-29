@@ -15,10 +15,25 @@ import os
 import sys
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.user import User
-from app.services.auth_service import hash_pin
+from app.services.auth_service import hash_pin, verify_pin
+
+
+def _check_pin_free(db: Session, pin: str, exclude_user_id: int | None = None) -> None:
+    """Mirrors routers/members._check_pin_free: login is PIN-only and
+    matches against every user, so seeding a duplicate PIN would silently
+    log one person in as the other."""
+    for user in db.scalars(select(User)).all():
+        if user.id != exclude_user_id and verify_pin(pin, user.password_hash):
+            print(
+                f"OWNER_PIN is already used by '{user.name}' — logging in with it "
+                "would be ambiguous. Pick a different PIN and re-run.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
 
 def main() -> None:
@@ -36,6 +51,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         user = db.scalar(select(User).where(User.email == email))
+        _check_pin_free(db, pin, exclude_user_id=user.id if user else None)
         if user is None:
             user = User(name=name, email=email, role="owner", password_hash=hash_pin(pin))
             db.add(user)

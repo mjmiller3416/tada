@@ -77,6 +77,9 @@
   flex-direction: column;
   gap: var(--space-1);
   flex: 1;
+  /* Sits beside the nowrap .countdown — without this it can't shrink
+     and pushes the row past the viewport. */
+  min-width: 0;
 }
 
 .label {
@@ -221,6 +224,7 @@
   width: 100%;
   font-size: var(--text-sm);
   color: var(--color-ink-soft);
+  overflow-wrap: anywhere;
 }
 
 /* ---- Edit-mode row tools ---- */
@@ -273,4 +277,19 @@
 .emptyText {
   margin: 0 0 var(--space-3);
   color: var(--color-ink-soft);
+}
+
+/* ---- Delete (edit mode only — quiet, secondary to Archive) ---- */
+
+.deleteList {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-6);
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  text-align: center;
+  min-height: var(--tap-target);
 }

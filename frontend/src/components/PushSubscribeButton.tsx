@@ -1,14 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { enablePushNotifications } from "@/lib/push";
+import { useEffect, useState } from "react";
+import { enablePushNotifications, isPushEnabled } from "@/lib/push";
 import { Button } from "@/components/ui";
 
 export default function PushSubscribeButton() {
-  const [status, setStatus] = useState<"idle" | "working" | "done" | "error">(
-    "idle",
-  );
+  const [status, setStatus] = useState<
+    "checking" | "idle" | "working" | "done" | "error"
+  >("checking");
   const [error, setError] = useState<string | null>(null);
+
+  // Read the real subscription state on mount (isPushEnabled waits for
+  // the service worker to be active, so a fresh open after a force-close
+  // no longer reads as "off").
+  useEffect(() => {
+    let cancelled = false;
+    isPushEnabled()
+      .then((enabled) => {
+        if (!cancelled) setStatus(enabled ? "done" : "idle");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("idle");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleClick() {
     setStatus("working");
@@ -27,12 +44,12 @@ export default function PushSubscribeButton() {
       <Button
         variant={status === "done" ? "secondary" : "primary"}
         onClick={handleClick}
-        disabled={status === "working"}
+        disabled={status === "working" || status === "checking"}
         fullWidth
       >
         {status === "done"
           ? "Notifications enabled ✓"
-          : status === "working"
+          : status === "working" || status === "checking"
             ? "One sec…"
             : "Enable notifications"}
       </Button>
