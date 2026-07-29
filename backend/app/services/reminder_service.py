@@ -9,6 +9,12 @@ Two reminder kinds get written to the table the Phase 0 cron polls:
 - **Snooze reminders** — one-shot rows tied to a task, created when she
   snoozes ("remind me later"). The cron drops them silently if the task
   got done in the meantime — never nag about finished work.
+- **Session timers** (Phase 5) — one-shot "that's your N minutes" rows,
+  routed through this same table + cron on purpose: a JS timer dies
+  when the screen sleeps, and she cleans with the phone in her pocket.
+  Marked via recurrence_rule = "session_timer:<total minutes>" so no
+  schema change is needed; the alert always reads as a win, never as a
+  failure to finish, and it never ends her session — she decides.
 
 All copy here follows the no-guilt voice (SPEC §5): warm, first-name,
 zero pressure.
@@ -27,9 +33,75 @@ from app.services import scheduling, settings_service
 
 DAILY_RULE = "daily"
 
+#: recurrence_rule prefix for session timers: "session_timer:<total
+#: minutes>". The total rides along so extending can recompose the
+#: congratulations with the right number — no new column needed.
+SESSION_TIMER_PREFIX = "session_timer:"
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def is_session_timer(reminder: Reminder) -> bool:
+    return (reminder.recurrence_rule or "").startswith(SESSION_TIMER_PREFIX)
+
+
+def _timer_copy(total_minutes: int) -> tuple[str, str]:
+    """The time's-up alert. She asked for a congratulations here — it
+    reads as a win, never "time's up, you failed to finish"."""
+    return (
+        f"That's {total_minutes} minutes — look at what you got done 🎉",
+        "Every one of those minutes counts. Keep going if you're in the "
+        "groove, or call it a lovely win — your call, always.",
+    )
+
+
+def start_session_timer(db: Session, user: User, minutes: int) -> Reminder:
+    """Create the one-shot timer for a timed session, replacing any
+    earlier still-pending timer (one session at a time). Caller commits."""
+    for row in db.scalars(
+        select(Reminder).where(
+            Reminder.user_id == user.id,
+            Reminder.recurrence_rule.like(f"{SESSION_TIMER_PREFIX}%"),
+            Reminder.active.is_(True),
+        )
+    ).all():
+        row.active = False
+
+    title, body = _timer_copy(minutes)
+    reminder = Reminder(
+        user_id=user.id,
+        title=title,
+        body=body,
+        scheduled_for=_utcnow() + timedelta(minutes=minutes),
+        recurrence_rule=f"{SESSION_TIMER_PREFIX}{minutes}",
+        active=True,
+    )
+    db.add(reminder)
+    db.flush()
+    return reminder
+
+
+def extend_session_timer(db: Session, reminder: Reminder, minutes: int) -> Reminder:
+    """"Extend" adds more time: push the alert out by `minutes` (from now,
+    if it already fired) and recompose the congratulations for the new
+    total. The queue top-up happens in the session flow — extending never
+    leaves her with time and nothing to do. Caller commits."""
+    now = _utcnow()
+    scheduled = reminder.scheduled_for
+    if scheduled.tzinfo is None:
+        scheduled = scheduled.replace(tzinfo=timezone.utc)
+    base = max(scheduled, now) if reminder.active else now
+    reminder.scheduled_for = base + timedelta(minutes=minutes)
+
+    previous_total = int(reminder.recurrence_rule.removeprefix(SESSION_TIMER_PREFIX))
+    total = previous_total + minutes
+    reminder.recurrence_rule = f"{SESSION_TIMER_PREFIX}{total}"
+    reminder.title, reminder.body = _timer_copy(total)
+    reminder.active = True
+    reminder.last_sent_at = None
+    return reminder
 
 
 def next_nudge_occurrence(nudge_time: str, tz_name: str, after: datetime) -> datetime:

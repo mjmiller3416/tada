@@ -1,5 +1,8 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
+from app.schemas.badges import BadgeRead
 from app.schemas.tasks import Effort, TaskRead
 
 
@@ -23,8 +26,36 @@ class SessionBuildRequest(BaseModel):
     zone_id: int | None = None
     campaign_id: int | None = None
     guest: bool = False
+    # Phase 5: a timer-extend top-up excludes what's already queued so
+    # the added minutes bring genuinely new tasks.
+    exclude_task_ids: list[int] = Field(default_factory=list)
 
 
 class SessionBuildResponse(BaseModel):
     tasks: list[TaskRead]
     total_minutes: int
+
+
+class SessionCompleteRequest(BaseModel):
+    """Sent when a session ends (SPEC §5: session-complete celebration +
+    badge check). `started_at` lets the response include badges earned
+    mid-session too, so nothing gets celebrated late — or twice."""
+
+    tasks_done: int = Field(ge=0)
+    started_at: datetime | None = None
+
+
+class SessionCompleteResponse(BaseModel):
+    new_badges: list[BadgeRead]
+
+
+class SessionTimerRequest(BaseModel):
+    """Start (or extend by) this many minutes. Matches the session
+    budget's own bounds."""
+
+    minutes: int = Field(ge=5, le=240)
+
+
+class SessionTimerRead(BaseModel):
+    id: int
+    fires_at: datetime

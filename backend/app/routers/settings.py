@@ -6,6 +6,7 @@ from app.models.user import User
 from app.routers.auth import require_owner
 from app.schemas.settings import SettingsRead, SettingsUpdate
 from app.services import reminder_service, settings_service
+from app.services import zones as zone_service
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -49,6 +50,14 @@ def update_settings(
         for key, value in payload.model_dump(exclude_unset=True).items()
         if value is not None
     }
+
+    # "I'm back" (Phase 4.6) clears vacation_until — first fold the days
+    # already spent away into the streak freeze (Phase 5), so an early
+    # return never reads as a streak break.
+    if updates.get("vacation_until") == "":
+        settings_service.record_vacation_clear(
+            db, current_user.id, zone_service.local_today(db, current_user.id)
+        )
 
     values = settings_service.set_settings(db, current_user.id, updates)
     # Nudge schedule follows the settings immediately.

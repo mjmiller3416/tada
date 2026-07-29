@@ -1,0 +1,152 @@
+.quiet {
+  text-align: center;
+  color: var(--color-ink-soft);
+}
+
+/* ---- Streak ---- */
+
+.streakCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.streakFlame {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.streakCount {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.streakNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+/* ---- Empty state — calm and unbothered, never a reproach ---- */
+
+.emptyCard {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.emptyEmoji {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-ink-soft);
+}
+
+/* ---- Today's completions ---- */
+
+.sectionTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.doneList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.doneCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.doneCheck {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-teal);
+  color: #fff;
+  font-weight: var(--weight-bold);
+}
+
+.doneBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.doneName {
+  margin: 0;
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.doneMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+/* ---- Badges ---- */
+
+.badgeSection {
+  margin-bottom: var(--space-5);
+}
+
+.badgeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+.badgeCard {
+  position: relative;
+  min-width: 0; /* long badge names must be able to shrink (Phase 4.5) */
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.badgeNew {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-coral);
+  color: #fff;
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: var(--weight-bold);
+}
+
+.badgeEmoji {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.badgeName {
+  margin: 0;
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.badgeDesc {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  overflow-wrap: anywhere;
+}

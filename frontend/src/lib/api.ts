@@ -257,11 +257,85 @@ export function buildSession(input: {
   zone_id?: number;
   campaign_id?: number;
   guest?: boolean;
+  /** Timer-extend top-up (Phase 5): skip what's already in the queue. */
+  exclude_task_ids?: number[];
 }) {
   return apiFetch<SessionResponse>("/api/sessions/build", {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+/* ---- Rewards & Done Today (Phase 5) ---- */
+
+export type Badge = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  emoji: string;
+  earned_at: string;
+};
+
+/** The session-complete badge check (SPEC §5's celebration + badge
+ * check). `started_at` scopes new_badges to this session, including
+ * badges earned mid-session on individual completions. */
+export function completeSession(input: {
+  tasks_done: number;
+  started_at: string;
+}) {
+  return apiFetch<{ new_badges: Badge[] }>("/api/sessions/complete", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export type SessionTimer = {
+  id: number;
+  fires_at: string;
+};
+
+/** The optional "nudge me when time's up" timer — a real push through
+ * the Reminder + cron plumbing, so it survives a pocketed phone. */
+export function startSessionTimer(minutes: number) {
+  return apiFetch<SessionTimer>("/api/sessions/timer", {
+    method: "POST",
+    body: JSON.stringify({ minutes }),
+  });
+}
+
+export function extendSessionTimer(id: number, minutes: number) {
+  return apiFetch<SessionTimer>(`/api/sessions/timer/${id}/extend`, {
+    method: "POST",
+    body: JSON.stringify({ minutes }),
+  });
+}
+
+export function cancelSessionTimer(id: number) {
+  return apiFetch<void>(`/api/sessions/timer/${id}`, { method: "DELETE" });
+}
+
+export type DoneTodayEntry = {
+  id: number;
+  task_name: string;
+  room_id: number | null;
+  room_name: string | null;
+  completed_at: string;
+  completed_by_id: number;
+  completed_by_name: string;
+  source: CompletionSource;
+};
+
+export type DoneTodayResponse = {
+  date: string;
+  completions: DoneTodayEntry[];
+  streak: number;
+  badges: Badge[];
+  household_members: number;
+};
+
+export function getDoneToday() {
+  return apiFetch<DoneTodayResponse>("/api/done-today");
 }
 
 /* ---- Settings ---- */

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -25,3 +25,6 @@ class CompletionLog(Base):
     )
     # "focus_session" | "direct" | "guest_mode" | "zone" | "campaign"
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="direct")
+
+    # Read-side convenience for the Done Today view (Phase 5).
+    task: Mapped["Task"] = relationship("Task")  # noqa: F821

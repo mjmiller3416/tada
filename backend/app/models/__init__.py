@@ -9,6 +9,7 @@ from app.models.setting import Setting
 from app.models.reminder import Reminder
 from app.models.campaign import Campaign, CampaignTask
 from app.models.packing import PackingItem, PackingList, PackingSection
+from app.models.badge import Badge, UserBadge
 
 __all__ = [
     "User",
@@ -26,4 +27,6 @@ __all__ = [
     "PackingList",
     "PackingSection",
     "PackingItem",
+    "Badge",
+    "UserBadge",
 ]

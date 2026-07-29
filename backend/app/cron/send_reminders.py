@@ -41,6 +41,7 @@ logger = logging.getLogger("cron.send_reminders")
 # Notifications sharing a tag replace each other on the device, so
 # repeated daily nudges never stack up in the tray.
 DAILY_NUDGE_TAG = "daily-nudge"
+SESSION_TIMER_TAG = "session-timer"
 
 
 def _send(
@@ -91,6 +92,15 @@ def _defer_for_vacation(db: Session, reminder: Reminder, user: User, now: dateti
 def _process(db: Session, reminder: Reminder, now: datetime) -> None:
     user = db.get(User, reminder.user_id)
     if user is None:
+        reminder.active = False
+        return
+
+    # Session timer (Phase 5): a one-shot alert she asked for minutes
+    # ago, so it fires even during a vacation window — it's her timer,
+    # not a nudge. It only notifies; it never ends the session for her.
+    if reminder_service.is_session_timer(reminder):
+        _send(db, reminder, user, reminder.title, reminder.body, tag=SESSION_TIMER_TAG)
+        reminder.last_sent_at = now
         reminder.active = False
         return
 

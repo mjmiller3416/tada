@@ -195,13 +195,15 @@ def complete_task(
     if not _can_complete(task, current_user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "That one isn't yours to check off")
 
-    scheduling.complete_task(db, task, current_user, payload.source)
-    reminder_service.clear_task_reminders(db, task.id)
     # Whatever the lens, a running campaign that lists this task gets to
-    # tick it off — progress is progress (SPEC §6, Phase 3).
+    # tick it off — progress is progress (SPEC §6, Phase 3). Marked
+    # BEFORE complete_task so the Phase 5 badge check sees a campaign
+    # this completion just finished.
     campaign_service.mark_done_in_running_campaigns(
         db, task.id, zone_service.local_today(db, current_user.id)
     )
+    scheduling.complete_task(db, task, current_user, payload.source)
+    reminder_service.clear_task_reminders(db, task.id)
     db.commit()
 
     if current_user.role == "kid":

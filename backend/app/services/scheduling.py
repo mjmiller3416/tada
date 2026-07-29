@@ -201,6 +201,7 @@ def build_session(
     effort: str | None = None,
     zone_id: int | None = None,
     guest_only: bool = False,
+    exclude_ids: set[int] | None = None,
     now: datetime | None = None,
 ) -> list[Task]:
     """Build the ordered task list for a focus session (SPEC §5).
@@ -213,6 +214,8 @@ def build_session(
 
     The Phase 3 lenses ride the same flow: `guest_only` builds the
     "company in [time]" punch list, `zone_id` builds "this week's zone".
+    `exclude_ids` (Phase 5) keeps a timer-extend top-up from re-offering
+    tasks already in her running session queue.
     """
     candidates = candidate_tasks(
         db,
@@ -223,6 +226,8 @@ def build_session(
         guest_only=guest_only,
         now=now,
     )
+    if exclude_ids:
+        candidates = [t for t in candidates if t.id not in exclude_ids]
 
     if minutes is None:
         return candidates[:MAX_SESSION_TASKS]
@@ -290,7 +295,15 @@ def complete_task(
     now: datetime | None = None,
 ) -> CompletionLog:
     """Completion (SPEC §4): reset the decay curve, clear any snooze, and
-    write the permanent CompletionLog row. Caller commits."""
+    write the permanent CompletionLog row. Phase 5 rides the same seam:
+    the streak advances and badges are checked here, so every completion
+    path — home screen, sessions, kid chores, overlays — counts exactly
+    once. Caller commits."""
+    # Local import: the reward layer reads settings and history; keeping
+    # it out of the module scope keeps the decay engine itself pure.
+    from app.services import badges as badge_service
+    from app.services import streaks
+
     now = now or _utcnow()
     task.last_done_at = now
     task.snoozed_until = None
@@ -298,6 +311,10 @@ def complete_task(
         task_id=task.id, completed_by=user.id, completed_at=now, source=source
     )
     db.add(log)
+    db.flush()  # the badge checks below count this completion too
+
+    streaks.update_streak(db, user, now)
+    badge_service.evaluate_completion(db, user, now)
     return log
 
 

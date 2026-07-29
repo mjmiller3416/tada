@@ -416,6 +416,15 @@ function HomeScreen({ firstName }: { firstName: string }) {
           ))}
         </>
       )}
+
+      {/* ---- Done Today (Phase 5): the home screen's ONE new element —
+           a quiet door to the rewards. Streaks and badges live behind
+           it, never out here; the calm home screen is the product. ---- */}
+      {focus !== null && !needsSetup && (
+        <Link href="/done-today" className={styles.doneTodayLink}>
+          ✨ See what you’ve gotten done today
+        </Link>
+      )}
     </AppShell>
   );
 }
