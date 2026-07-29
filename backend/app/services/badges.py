@@ -132,7 +132,7 @@ SEED_BADGES: list[dict] = [
 
 def seed_badges(db: Session) -> None:
     """Insert any seed badges missing by code — idempotent, and later
-    phases can grow the set the same way (same pattern as the packing
+    phases can grow the set the same way (same pattern as the list
     templates and FlyLady zones). Never overwrites an existing row.
     Caller commits."""
     existing = set(db.scalars(select(Badge.code)).all())

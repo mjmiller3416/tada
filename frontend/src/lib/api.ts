@@ -539,24 +539,15 @@ export function deleteCampaign(id: number) {
   return apiFetch<void>(`/api/campaigns/${id}`, { method: "DELETE" });
 }
 
-/* ---- Packing lists (Phase 4 — its own module, apart from cleaning) ---- */
+/* ---- Lists (Phase 6, grown from Phase 4 packing — its own module,
+   apart from cleaning; list items never touch the focus surfaces) ---- */
 
-export type PackingCategory =
-  | "moving"
-  | "travel"
-  | "events"
-  | "work"
-  | "outdoor"
-  | "family_kids"
-  | "emergency"
-  | "shipping_storage"
-  | "everyday"
-  | "custom";
+export type ListKind = "packing" | "shopping" | "tasks" | "custom";
 
-export type PackingListSummary = {
+export type ListSummary = {
   id: number;
   name: string;
-  category: PackingCategory;
+  kind: ListKind;
   is_template: boolean;
   event_date: string | null; // ISO date
   destination: string | null;
@@ -565,59 +556,65 @@ export type PackingListSummary = {
   packed_count: number;
   total_count: number;
   percent: number;
+  /** Computed price totals — decimal strings ("340.00"), null until at
+   * least one item on the list has a price. Checked reads as
+   * spend-to-date on a shopping list. */
+  checked_price: string | null;
+  total_price: string | null;
   created_at: string;
 };
 
-export type PackingItem = {
+export type ListItem = {
   id: number;
   name: string;
   quantity: string | null;
   notes: string | null;
   packed: boolean;
+  price: string | null; // decimal string ("40.00"), never a float
   sort_order: number;
 };
 
-export type PackingSection = {
+export type ListSection = {
   id: number;
   name: string;
   sort_order: number;
   packed_count: number;
   total_count: number;
-  items: PackingItem[];
+  items: ListItem[];
 };
 
-export type PackingListDetail = PackingListSummary & {
+export type ListDetail = ListSummary & {
   reminder_enabled: boolean;
-  sections: PackingSection[];
+  sections: ListSection[];
 };
 
-export function getPackingTemplates() {
-  return apiFetch<PackingListSummary[]>("/api/packing/templates");
+export function getListTemplates() {
+  return apiFetch<ListSummary[]>("/api/lists/templates");
 }
 
-export function getPackingLists() {
-  return apiFetch<PackingListSummary[]>("/api/packing/lists");
+export function getLists() {
+  return apiFetch<ListSummary[]>("/api/lists");
 }
 
 /** Clones a source list (a template, or an archived list to reuse). */
-export function createPackingList(input: {
+export function createList(input: {
   source_list_id: number;
   name?: string;
   event_date?: string | null;
   destination?: string;
   duration?: string;
 }) {
-  return apiFetch<PackingListDetail>("/api/packing/lists", {
+  return apiFetch<ListDetail>("/api/lists", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function getPackingList(id: number) {
-  return apiFetch<PackingListDetail>(`/api/packing/lists/${id}`);
+export function getList(id: number) {
+  return apiFetch<ListDetail>(`/api/lists/${id}`);
 }
 
-export function updatePackingList(
+export function updateList(
   id: number,
   input: {
     name?: string;
@@ -632,50 +629,50 @@ export function updatePackingList(
     reminder_days_before?: number;
   },
 ) {
-  return apiFetch<PackingListDetail>(`/api/packing/lists/${id}`, {
+  return apiFetch<ListDetail>(`/api/lists/${id}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });
 }
 
-export function deletePackingList(id: number) {
-  return apiFetch<void>(`/api/packing/lists/${id}`, { method: "DELETE" });
+export function deleteList(id: number) {
+  return apiFetch<void>(`/api/lists/${id}`, { method: "DELETE" });
 }
 
-export function addPackingSection(listId: number, name: string) {
-  return apiFetch<PackingListDetail>(`/api/packing/lists/${listId}/sections`, {
+export function addListSection(listId: number, name: string) {
+  return apiFetch<ListDetail>(`/api/lists/${listId}/sections`, {
     method: "POST",
     body: JSON.stringify({ name }),
   });
 }
 
-export function updatePackingSection(
+export function updateListSection(
   id: number,
   input: { name?: string; sort_order?: number },
 ) {
-  return apiFetch<PackingListDetail>(`/api/packing/sections/${id}`, {
+  return apiFetch<ListDetail>(`/api/lists/sections/${id}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });
 }
 
-export function deletePackingSection(id: number) {
-  return apiFetch<PackingListDetail>(`/api/packing/sections/${id}`, {
+export function deleteListSection(id: number) {
+  return apiFetch<ListDetail>(`/api/lists/sections/${id}`, {
     method: "DELETE",
   });
 }
 
-export function addPackingItem(
+export function addListItem(
   sectionId: number,
-  input: { name: string; quantity?: string; notes?: string },
+  input: { name: string; quantity?: string; notes?: string; price?: string },
 ) {
-  return apiFetch<PackingListDetail>(`/api/packing/sections/${sectionId}/items`, {
+  return apiFetch<ListDetail>(`/api/lists/sections/${sectionId}/items`, {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function updatePackingItem(
+export function updateListItem(
   id: number,
   input: {
     name?: string;
@@ -684,17 +681,19 @@ export function updatePackingItem(
     notes?: string;
     clear_notes?: boolean;
     packed?: boolean;
+    price?: string; // decimal string, e.g. "12.50"
+    clear_price?: boolean;
     sort_order?: number;
   },
 ) {
-  return apiFetch<PackingListDetail>(`/api/packing/items/${id}`, {
+  return apiFetch<ListDetail>(`/api/lists/items/${id}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });
 }
 
-export function deletePackingItem(id: number) {
-  return apiFetch<PackingListDetail>(`/api/packing/items/${id}`, {
+export function deleteListItem(id: number) {
+  return apiFetch<ListDetail>(`/api/lists/items/${id}`, {
     method: "DELETE",
   });
 }

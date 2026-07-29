@@ -77,7 +77,9 @@ Supply
   status: "in_stock" | "low" | "out"    # MANUAL only — never auto-decremented
   last_pushed_at: timestamp (nullable)   # when last pushed to MealGenie's list (dedupe)
   created_at
-# No shopping-list entity in Tada — low/out supplies are pushed to MealGenie's list (see §6).
+# No replenishment shopping-list entity in Tada — low/out supplies are pushed to
+# MealGenie's list (see §6). Phase 6's general Lists are finite projects, not a
+# replenishment stream, and never push to MealGenie.
 
 CompletionLog               # history; feeds streaks, badges, and kid-completion notifications
   id, task_id -> Task
@@ -189,7 +191,11 @@ Most features are lenses or modes over the §3 model + §4 engine — not separa
 - **Energy filter.** Weight by `effort`: low-energy surfaces quick wins, deep-clean day surfaces big tasks. Stacks with the other two.
 - **Decay-aware snooze.** Defers the *reminder* (later today / tomorrow / a few days) **without** resetting `last_done_at` — the task keeps aging quietly and resurfaces, but she isn't nagged now and nothing is falsely marked done. No guilt language.
 
-**Supplies (Phase 2).** A small inventory: each supply is `in_stock` / `low` / `out`, set **manually** (one tap — no auto-decrement, which is guesswork that drifts). Tasks link to the supplies they use. When a task whose linked supply is `low`/`out` surfaces, flag it inline ("heads up — you're low on floor cleaner"). **Tada has no shopping list of its own** — when a supply is marked `low`/`out`, Tada pushes it into **MealGenie's existing shopping list** (which the owner already uses and loves) via MealGenie's API. One-way push; deduped via `last_pushed_at` so nothing is added twice; each item tagged (source `tada`, category `household`) so supplies stay distinguishable from groceries. The MealGenie-side changes are specified in the build-prompts file.
+**Supplies (Phase 2).** A small inventory: each supply is `in_stock` / `low` / `out`, set **manually** (one tap — no auto-decrement, which is guesswork that drifts). Tasks link to the supplies they use. When a task whose linked supply is `low`/`out` surfaces, flag it inline ("heads up — you're low on floor cleaner"). **Tada has no *replenishment* shopping list of its own** — when a supply is marked `low`/`out`, Tada pushes it into **MealGenie's existing shopping list** (which the owner already uses and loves) via MealGenie's API. One-way push; deduped via `last_pushed_at` so nothing is added twice; each item tagged (source `tada`, category `household`) so supplies stay distinguishable from groceries. The MealGenie-side changes are specified in the build-prompts file.
+
+The distinction matters since Phase 6: **MealGenie's list is the ongoing replenishment stream** — things that run out and get rebought forever — while a **Tada list** (a Christmas gift list, a school-supply run) is a **finite project** that gets finished and archived. The two never mix: **Tada's lists do NOT push to MealGenie**, and no future phase should "helpfully" add that integration — a gift list landing between the groceries would be noise in both apps.
+
+**Lists (Phase 4 as packing, generalized in Phase 6).** General-purpose one-off checklists — packing, shopping (school supplies, Christmas and birthday gifts), and plain to-do lists — in their own module (`lists`, `list_sections`, `list_items`), deliberately apart from the cleaning core. A list's `kind` (`packing` / `shopping` / `tasks` / `custom`) drives small presentation differences only. Full grouped checklist UI with collapsible sections, never the focus flow; items may carry an optional price (Numeric, computed running totals, shown only once something is priced); **list items never surface on the daily focus home screen or in a focus session** — cleaning tasks recur and decay, list items are done once and gone.
 
 **Multi-user assign/claim (Phase 2).** Kids get their **own logins** (role `kid`) with **basic functionality**: see their assigned/claimable chores, check them off. **On completion, notify the owner** (via push). Tasks can be assigned to a member or left open to claim. **No rewards, points, or gamification for the kids' chores** — purely assignment + completion + notification.
 

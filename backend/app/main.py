@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, campaigns, chores, done_today, members, onboarding, packing, push, rooms, sessions
+from app.routers import auth, campaigns, chores, done_today, lists, members, onboarding, push, rooms, sessions
 from app.routers import settings as settings_router
 from app.routers import supplies, tasks, zones
 
@@ -28,7 +28,7 @@ app.include_router(members.router)
 app.include_router(supplies.router)
 app.include_router(zones.router)
 app.include_router(campaigns.router)
-app.include_router(packing.router)
+app.include_router(lists.router)
 app.include_router(done_today.router)
 
 

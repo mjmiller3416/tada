@@ -1,0 +1,363 @@
+.back {
+  border: none;
+  background: none;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-2);
+}
+
+/* ---- Header ---- */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.headerChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.renameRow {
+  display: flex;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Summary card ---- */
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.progressTrack {
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-teal);
+  transition: width var(--motion-slow) ease;
+}
+
+.progressText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+/* The running price total — rendered only once something is priced, so
+   an unpriced packing list never shows a pointless $0.00. */
+.totals {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.eventRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.eventLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  /* Sits beside the nowrap .countdown — without this it can't shrink
+     and pushes the row past the viewport. */
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink-soft);
+}
+
+.countdown {
+  font-weight: var(--weight-bold);
+  color: var(--color-coral);
+  padding-bottom: var(--space-3);
+  white-space: nowrap;
+}
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  font: inherit;
+  color: var(--color-ink);
+  min-height: var(--tap-target);
+  min-width: 0;
+  flex: 1;
+}
+
+/* ---- Toolbar ---- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+/* ---- Sections & items: the full grouped checklist ---- */
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Sticky so the group she's working through stays labeled while its
+   items scroll — the page (not a wrapper) is the scroll container, and
+   nothing in the ancestor chain may set overflow-x: hidden or this
+   silently stops sticking (see Phase 4.5 item 1). */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-bg);
+  padding: var(--space-1) 0;
+}
+
+/* The tap target for collapsing: the name + count row itself. */
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  min-height: var(--tap-target);
+  cursor: pointer;
+}
+
+.chevron {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--color-ink-soft);
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.chevronCollapsed {
+  transform: rotate(-90deg);
+}
+
+.sectionName {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sectionCount {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+}
+
+.sectionTrack {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.sectionFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-teal);
+  transition: width var(--motion-base) ease;
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.itemRow:last-child {
+  border-bottom: none;
+}
+
+.itemLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap-target);
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--color-teal);
+  flex-shrink: 0;
+}
+
+.itemName {
+  overflow-wrap: anywhere;
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+
+.packed .itemName {
+  color: var(--color-ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-teal);
+}
+
+.quantity {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
+.price {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+/* Edit-mode price box — small on purpose; the name stays the star. */
+.priceInput {
+  width: 90px;
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-button);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+  min-height: 36px;
+}
+
+.notes {
+  margin: 0 0 var(--space-2) calc(22px + var(--space-3));
+  width: 100%;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Edit-mode row tools ---- */
+
+.rowTools {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.tool {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  border-radius: var(--radius-button);
+  color: var(--color-ink-soft);
+  min-width: 36px;
+  min-height: 36px;
+  font-size: var(--text-sm);
+}
+
+.tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---- Add rows ---- */
+
+.addRow {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.addInput {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-button);
+  background: transparent;
+  font: inherit;
+  color: var(--color-ink);
+  min-height: var(--tap-target);
+}
+
+.addInput:focus {
+  background: var(--color-surface);
+  border-style: solid;
+}
+
+.emptyText {
+  margin: 0 0 var(--space-3);
+  color: var(--color-ink-soft);
+}
+
+/* ---- Delete (edit mode only — quiet, secondary to Archive) ---- */
+
+.deleteList {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-6);
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  text-align: center;
+  min-height: var(--tap-target);
+}

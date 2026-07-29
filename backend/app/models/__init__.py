@@ -8,7 +8,7 @@ from app.models.completion_log import CompletionLog
 from app.models.setting import Setting
 from app.models.reminder import Reminder
 from app.models.campaign import Campaign, CampaignTask
-from app.models.packing import PackingItem, PackingList, PackingSection
+from app.models.lists import List, ListItem, ListSection
 from app.models.badge import Badge, UserBadge
 
 __all__ = [
@@ -24,9 +24,9 @@ __all__ = [
     "Reminder",
     "Campaign",
     "CampaignTask",
-    "PackingList",
-    "PackingSection",
-    "PackingItem",
+    "List",
+    "ListSection",
+    "ListItem",
     "Badge",
     "UserBadge",
 ]

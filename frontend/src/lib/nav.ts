@@ -6,6 +6,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/rooms", label: "Rooms", icon: "🛋️" },
   { href: "/tasks", label: "Tasks", icon: "🧺" },
   { href: "/supplies", label: "Supplies", icon: "🧴" },
-  { href: "/packing", label: "Packing", icon: "🧳" },
+  { href: "/lists", label: "Lists", icon: "📋" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
