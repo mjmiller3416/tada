@@ -8,8 +8,10 @@ import { createRoom, getRooms, type Room } from "@/lib/api";
 import { BAND_LABEL } from "@/lib/decay";
 import { NAV_ITEMS } from "@/lib/nav";
 import DirtinessDot from "@/components/DirtinessDot";
-import { AppShell, Button, Card } from "@/components/ui";
+import { AppShell, Button, Card, Chip } from "@/components/ui";
 import styles from "./rooms.module.css";
+
+const MINUTE_CHOICES = [5, 15, 30, 45];
 
 /**
  * The Room view (SPEC §6): every room with its aggregate dirtiness — a
@@ -26,6 +28,9 @@ function RoomsScreen() {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
+  // "Clean here" opens a quick time pick (Phase 4.6) — same chips as the
+  // home screen, so a room session can be scoped to the time she has.
+  const [timePickFor, setTimePickFor] = useState<number | null>(null);
 
   const load = useCallback(() => {
     getRooms()
@@ -71,34 +76,64 @@ function RoomsScreen() {
       <div className={styles.list}>
         {rooms?.map((room) => (
           <Card key={room.id} className={styles.roomCard}>
-            <button
-              type="button"
-              className={styles.roomMain}
-              onClick={() => router.push(`/rooms/${room.id}`)}
-            >
-              <span className={styles.roomName}>{room.name}</span>
-              <span className={styles.roomMeta}>
-                {room.band ? (
-                  <>
-                    <DirtinessDot band={room.band} withLabel />
-                    {room.due_count > 0 && (
-                      <span className={styles.dueNote}>
-                        · {room.due_count} ready for attention
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span className={styles.dueNote}>No tasks yet</span>
-                )}
-              </span>
-            </button>
-            {room.due_count > 0 && (
-              <Button
-                variant="primary"
-                onClick={() => router.push(`/session?room=${room.id}`)}
+            <div className={styles.roomTop}>
+              <button
+                type="button"
+                className={styles.roomMain}
+                onClick={() => router.push(`/rooms/${room.id}`)}
               >
-                Clean here
-              </Button>
+                <span className={styles.roomName}>{room.name}</span>
+                <span className={styles.roomMeta}>
+                  {room.band ? (
+                    <>
+                      <DirtinessDot band={room.band} withLabel />
+                      {room.due_count > 0 && (
+                        <span className={styles.dueNote}>
+                          · {room.due_count} ready for attention
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className={styles.dueNote}>No tasks yet</span>
+                  )}
+                </span>
+              </button>
+              {room.due_count > 0 && (
+                <Button
+                  variant="primary"
+                  onClick={() =>
+                    setTimePickFor(timePickFor === room.id ? null : room.id)
+                  }
+                >
+                  Clean here
+                </Button>
+              )}
+            </div>
+            {timePickFor === room.id && (
+              <div className={styles.timePick}>
+                <span className={styles.timePickLabel}>
+                  How much time do you have?
+                </span>
+                <div className={styles.timePickChips}>
+                  {MINUTE_CHOICES.map((m) => (
+                    <Chip
+                      key={m}
+                      tone="coral"
+                      onClick={() =>
+                        router.push(`/session?room=${room.id}&minutes=${m}`)
+                      }
+                    >
+                      {m} min
+                    </Chip>
+                  ))}
+                  <Chip
+                    tone="neutral"
+                    onClick={() => router.push(`/session?room=${room.id}`)}
+                  >
+                    The whole room
+                  </Chip>
+                </div>
+              </div>
             )}
           </Card>
         ))}

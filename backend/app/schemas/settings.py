@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, field_validator
@@ -13,6 +14,7 @@ class SettingsRead(BaseModel):
     timezone: str
     zones_enabled: bool
     campaigns_enabled: bool
+    vacation_until: str  # "YYYY-MM-DD" (last paused day), or "" when home
 
 
 class SettingsUpdate(BaseModel):
@@ -22,6 +24,7 @@ class SettingsUpdate(BaseModel):
     timezone: str | None = None
     zones_enabled: bool | None = None
     campaigns_enabled: bool | None = None
+    vacation_until: str | None = None
 
     @field_validator("daily_nudge_time")
     @classmethod
@@ -41,4 +44,17 @@ class SettingsUpdate(BaseModel):
             ZoneInfo(value)
         except Exception as exc:
             raise ValueError("must be a valid IANA timezone name") from exc
+        return value
+
+    @field_validator("vacation_until")
+    @classmethod
+    def validate_vacation_until(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return value  # "" is meaningful: vacation mode off
+        try:
+            date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError(
+                "must be a date (YYYY-MM-DD) or empty to turn vacation mode off"
+            ) from exc
         return value

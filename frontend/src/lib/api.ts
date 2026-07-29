@@ -154,6 +154,10 @@ export function updateTask(
     clear_room?: boolean;
     clear_assignee?: boolean;
     is_active?: boolean;
+    /** "When was this last done?" — a correction to history (Phase 4.6).
+     * Never writes a CompletionLog; the decay curve simply re-anchors. */
+    last_done_at?: string;
+    clear_last_done?: boolean;
   },
 ) {
   return apiFetch<Task>(`/api/tasks/${id}`, {
@@ -269,6 +273,9 @@ export type Settings = {
   timezone: string;
   zones_enabled: boolean; // Phase 3 overlays — opt-in, off by default
   campaigns_enabled: boolean;
+  // Vacation mode (Phase 4.6): last paused day "YYYY-MM-DD", "" = home.
+  // Pauses the nudges only — decay keeps running honestly throughout.
+  vacation_until: string;
 };
 
 export function getSettings() {
@@ -306,7 +313,11 @@ export function getMembers() {
   return apiFetch<Member[]>("/api/members");
 }
 
-export function createMember(input: { name: string; pin: string }) {
+export function createMember(input: {
+  name: string;
+  pin: string;
+  role?: "kid" | "owner"; // defaults to "kid"; "owner" = a second adult (Phase 4.6)
+}) {
   return apiFetch<Member>("/api/members", {
     method: "POST",
     body: JSON.stringify(input),

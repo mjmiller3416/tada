@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   ApiError,
   createMember,
@@ -9,18 +10,39 @@ import {
   updateMember,
   type Member,
 } from "@/lib/api";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, Chip } from "@/components/ui";
 import styles from "./HouseholdSection.module.css";
 
+type Role = "kid" | "owner";
+
+function memberMeta(member: Member): string {
+  const n = member.assigned_count;
+  if (member.role === "owner") {
+    return n === 0
+      ? "adult"
+      : `adult · ${n} ${n === 1 ? "task" : "tasks"} assigned`;
+  }
+  return n === 0
+    ? "no chores assigned yet"
+    : `${n} ${n === 1 ? "chore" : "chores"} assigned`;
+}
+
 /**
- * "Your crew" (SPEC §6 multi-user, Phase 2): add kid logins, rename them,
- * hand out fresh PINs, remove them. Kids see their chores and check them
- * off — that's the whole kid experience, so this is the whole admin.
+ * "Your crew" (SPEC §6 multi-user, Phase 2; adults since Phase 4.6):
+ * everyone's PIN login lives here — kids AND extra adults. An adult
+ * (role "owner") sees and can change everything, exactly like her; a
+ * kid sees only their chores. Tapping a person opens the task list
+ * filtered to what's assigned to them.
  */
-export default function HouseholdSection() {
+export default function HouseholdSection({
+  currentUserId,
+}: {
+  currentUserId: number;
+}) {
   const [members, setMembers] = useState<Member[]>([]);
   const [newName, setNewName] = useState("");
   const [newPin, setNewPin] = useState("");
+  const [newRole, setNewRole] = useState<Role>("kid");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -41,9 +63,10 @@ export default function HouseholdSection() {
     setBusy(true);
     setError(null);
     try {
-      await createMember({ name: newName.trim(), pin: newPin });
+      await createMember({ name: newName.trim(), pin: newPin, role: newRole });
       setNewName("");
       setNewPin("");
+      setNewRole("kid");
       load();
     } catch (err) {
       setError(
@@ -56,38 +79,44 @@ export default function HouseholdSection() {
     }
   }
 
-  const kids = members.filter((m) => m.role === "kid");
   const addValid = newName.trim().length > 0 && /^\d{4,12}$/.test(newPin);
 
   return (
     <Card className={styles.section}>
       <h2 className={styles.heading}>Your crew</h2>
       <p className={styles.help}>
-        Kids get their own login — just a PIN. They see their chores and
-        check them off, and you get a happy little ping each time.
+        Everyone logs in with their own PIN. An adult sees and can change
+        everything, same as you; a kid sees just their chores — and you get
+        a happy little ping each time they finish one. Tap a person to see
+        what’s on their plate.
       </p>
 
-      {kids.map((kid) =>
-        editingId === kid.id ? (
-          <KidEditor
-            key={kid.id}
-            kid={kid}
+      {members.map((member) =>
+        editingId === member.id ? (
+          <MemberEditor
+            key={member.id}
+            member={member}
+            isSelf={member.id === currentUserId}
             onClose={(changed) => {
               setEditingId(null);
               if (changed) load();
             }}
           />
         ) : (
-          <div key={kid.id} className={styles.kidRow}>
-            <span className={styles.kidBody}>
-              <span className={styles.kidName}>{kid.name}</span>
-              <span className={styles.kidMeta}>
-                {kid.assigned_count === 0
-                  ? "no chores assigned yet"
-                  : `${kid.assigned_count} ${kid.assigned_count === 1 ? "chore" : "chores"} assigned`}
+          <div key={member.id} className={styles.kidRow}>
+            <Link
+              href={`/tasks?assignee=${member.id}`}
+              className={styles.kidBody}
+            >
+              <span className={styles.kidName}>
+                {member.name}
+                {member.id === currentUserId && (
+                  <span className={styles.you}> (you)</span>
+                )}
               </span>
-            </span>
-            <Button variant="ghost" onClick={() => setEditingId(kid.id)}>
+              <span className={styles.kidMeta}>{memberMeta(member)}</span>
+            </Link>
+            <Button variant="ghost" onClick={() => setEditingId(member.id)}>
               Edit
             </Button>
           </div>
@@ -95,7 +124,26 @@ export default function HouseholdSection() {
       )}
 
       <form onSubmit={handleAdd} className={styles.addForm}>
-        <span className={styles.addLabel}>Add a kid</span>
+        <span className={styles.addLabel}>Add someone</span>
+        <div className={styles.roleRow}>
+          <Chip
+            tone={newRole === "kid" ? "coral" : "neutral"}
+            onClick={() => setNewRole("kid")}
+          >
+            A kid
+          </Chip>
+          <Chip
+            tone={newRole === "owner" ? "coral" : "neutral"}
+            onClick={() => setNewRole("owner")}
+          >
+            An adult
+          </Chip>
+        </div>
+        <p className={styles.roleNote}>
+          {newRole === "kid"
+            ? "Kids see only their own chores and check them off."
+            : "An adult sees and can change everything — tasks, lists, settings."}
+        </p>
         <div className={styles.addRow}>
           <input
             type="text"
@@ -103,7 +151,7 @@ export default function HouseholdSection() {
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Name"
             className={styles.input}
-            aria-label="Kid's name"
+            aria-label="Name"
           />
           <input
             type="password"
@@ -112,7 +160,7 @@ export default function HouseholdSection() {
             onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
             placeholder="PIN"
             className={`${styles.input} ${styles.pinInput}`}
-            aria-label="Kid's PIN"
+            aria-label="PIN"
           />
           <Button type="submit" variant="secondary" disabled={busy || !addValid}>
             Add
@@ -124,14 +172,16 @@ export default function HouseholdSection() {
   );
 }
 
-function KidEditor({
-  kid,
+function MemberEditor({
+  member,
+  isSelf,
   onClose,
 }: {
-  kid: Member;
+  member: Member;
+  isSelf: boolean;
   onClose: (changed: boolean) => void;
 }) {
-  const [name, setName] = useState(kid.name);
+  const [name, setName] = useState(member.name);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +193,7 @@ function KidEditor({
     setBusy(true);
     setError(null);
     try {
-      await updateMember(kid.id, {
+      await updateMember(member.id, {
         name: name.trim(),
         ...(pin !== "" ? { pin } : {}),
       });
@@ -160,18 +210,22 @@ function KidEditor({
 
   async function handleRemove() {
     if (busy) return;
-    if (
-      !window.confirm(
-        `Remove ${kid.name}’s login? Their assigned chores stay, just unassigned.`,
-      )
-    )
-      return;
+    const stays =
+      member.role === "kid"
+        ? "Their assigned chores stay, just unassigned."
+        : "Their assigned tasks stay, just unassigned.";
+    if (!window.confirm(`Remove ${member.name}’s login? ${stays}`)) return;
     setBusy(true);
     try {
-      await deleteMember(kid.id);
+      await deleteMember(member.id);
       onClose(true);
-    } catch {
-      setError("That didn’t work — give it another try.");
+    } catch (err) {
+      // 409 = the last adult login; the backend explains it warmly.
+      setError(
+        err instanceof ApiError && err.status === 409
+          ? err.message
+          : "That didn’t work — give it another try.",
+      );
       setBusy(false);
     }
   }
@@ -206,14 +260,18 @@ function KidEditor({
         <Button variant="ghost" onClick={() => onClose(false)} disabled={busy}>
           Cancel
         </Button>
-        <Button
-          variant="ghost"
-          onClick={handleRemove}
-          disabled={busy}
-          className={styles.removeButton}
-        >
-          Remove
-        </Button>
+        {/* Removing your own login from under yourself is never the
+            right move — change the PIN or ask the other adult instead. */}
+        {!isSelf && (
+          <Button
+            variant="ghost"
+            onClick={handleRemove}
+            disabled={busy}
+            className={styles.removeButton}
+          >
+            Remove
+          </Button>
+        )}
       </div>
     </div>
   );

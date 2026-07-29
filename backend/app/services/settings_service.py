@@ -1,6 +1,8 @@
 """Per-user settings (SPEC §3 `Setting`): a small key/value store with
 defaults, so features read one merged dict and unset keys just work."""
 
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,10 @@ DEFAULTS: dict[str, str] = {
     # off cleanly returns to the core decay-driven experience.
     "zones_enabled": "false",        # the FlyLady zone overlay
     "campaigns_enabled": "false",    # seasonal campaigns
+    # Vacation mode (Phase 4.6): pause the nudges, keep the decay
+    # running. The user's local date (YYYY-MM-DD) of the LAST paused
+    # day; "" = not away. Reminders resume by themselves the day after.
+    "vacation_until": "",
 }
 
 
@@ -51,3 +57,25 @@ def set_settings(db: Session, user_id: int, updates: dict[str, str]) -> dict[str
     # below (and any nudge sync that follows) sees the new values.
     db.flush()
     return get_settings(db, user_id)
+
+
+def vacation_until(db: Session, user_id: int) -> date | None:
+    """The last day of the user's vacation window (her local calendar),
+    or None when vacation mode is off. Phase 5 will freeze streaks
+    across this same window — read it through here, not the raw key."""
+    raw = get_setting(db, user_id, "vacation_until").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def is_on_vacation(db: Session, user_id: int, today: date) -> bool:
+    """Whether `today` (the user's LOCAL date) falls inside the vacation
+    window. This pauses reminder dispatch only — the decay engine in
+    services/scheduling.py must never consult it (SPEC §4: she'd rather
+    come home to an honest picture than a fiction)."""
+    until = vacation_until(db, user_id)
+    return until is not None and today <= until

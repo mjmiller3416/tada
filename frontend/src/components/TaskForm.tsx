@@ -15,6 +15,7 @@ import {
   type Task,
 } from "@/lib/api";
 import { CADENCE_PRESETS } from "@/lib/decay";
+import { fromLocalDateValue, toLocalDateValue } from "@/lib/dates";
 import { Button, Card, Chip } from "@/components/ui";
 import styles from "./TaskForm.module.css";
 
@@ -78,6 +79,11 @@ export default function TaskForm({
   );
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [isActive, setIsActive] = useState(task?.is_active ?? true);
+  // "When was this last done?" (Phase 4.6) — kept as the date-input
+  // string so we only send a change when she actually edits it.
+  const initialLastDone =
+    task?.last_done_at != null ? toLocalDateValue(task.last_done_at) : "";
+  const [lastDone, setLastDone] = useState(initialLastDone);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,6 +136,13 @@ export default function TaskForm({
           supply_ids: supplyIds,
           notes: notes.trim() || null,
           is_active: isActive,
+          // Only send when she changed it — an untouched date must not
+          // quietly rewrite the precise last-done timestamp.
+          ...(lastDone !== initialLastDone
+            ? lastDone === ""
+              ? { clear_last_done: true }
+              : { last_done_at: fromLocalDateValue(lastDone) }
+            : {}),
         });
       } else {
         await createTask({
@@ -255,6 +268,23 @@ export default function TaskForm({
               </label>
             )}
           </div>
+
+          {task && (
+            <label className={styles.field}>
+              <span className={styles.label}>When was it last done?</span>
+              <input
+                type="date"
+                value={lastDone}
+                max={toLocalDateValue()}
+                onChange={(e) => setLastDone(e.target.value)}
+                className={styles.input}
+              />
+              <span className={styles.hint}>
+                If real life got ahead of Tada, set the date straight and it
+                won’t come up early. Leave it blank if it hasn’t been done yet.
+              </span>
+            </label>
+          )}
 
           <div className={styles.twoUp}>
             <label className={styles.field}>

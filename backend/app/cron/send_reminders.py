@@ -20,7 +20,7 @@ no-guilt rule: an archived list or a passed date drops silently.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -63,10 +63,50 @@ def _send(
     )
 
 
+def _user_tz(db: Session, user_id: int) -> ZoneInfo | timezone:
+    try:
+        return ZoneInfo(settings_service.get_setting(db, user_id, "timezone"))
+    except Exception:
+        return timezone.utc
+
+
+def _defer_for_vacation(db: Session, reminder: Reminder, user: User, now: datetime) -> None:
+    """Vacation skip (Phase 4.6): push the reminder past today WITHOUT
+    deactivating it, so everything resumes by itself. The daily nudge
+    rolls forward through its own service (respecting her nudge time);
+    everything else keeps its wall-clock time and slides a day at a time
+    — so nothing fires at an odd hour the moment the window closes, and
+    an early "I'm back" is never more than a day from normal service."""
+    if reminder.recurrence_rule == reminder_service.DAILY_RULE:
+        reminder_service.advance_daily_nudge(db, reminder, user)
+        return
+    next_at = reminder.scheduled_for
+    if next_at.tzinfo is None:
+        next_at = next_at.replace(tzinfo=timezone.utc)
+    while next_at <= now:
+        next_at += timedelta(days=1)
+    reminder.scheduled_for = next_at
+
+
 def _process(db: Session, reminder: Reminder, now: datetime) -> None:
     user = db.get(User, reminder.user_id)
     if user is None:
         reminder.active = False
+        return
+
+    # Vacation mode (Phase 4.6): pause the nudges, keep the decay
+    # running. ALL reminder types are skipped — never deactivated —
+    # while the user's local today sits inside the window. Decay and
+    # ranking (services/scheduling.py) are deliberately untouched.
+    today = datetime.now(_user_tz(db, user.id)).date()
+    if settings_service.is_on_vacation(db, user.id, today):
+        _defer_for_vacation(db, reminder, user, now)
+        logger.info(
+            "Reminder %d skipped (user %d on vacation, resumes after %s)",
+            reminder.id,
+            user.id,
+            settings_service.vacation_until(db, user.id),
+        )
         return
 
     if reminder.packing_list_id is not None:
@@ -79,11 +119,6 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> None:
             reminder.active = False
             logger.info("Reminder %d dropped (packing list archived or gone)", reminder.id)
             return
-        try:
-            tz = ZoneInfo(settings_service.get_setting(db, user.id, "timezone"))
-        except Exception:
-            tz = timezone.utc
-        today = datetime.now(tz).date()
         first_name = user.name.split()[0] if user.name else "there"
         composed = packing_service.compose_countdown(packing_list, today, first_name)
         if composed is None:

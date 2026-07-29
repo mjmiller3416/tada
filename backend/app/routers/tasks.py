@@ -144,6 +144,13 @@ def update_task(
         task.notes = payload.notes or None
     if payload.is_active is not None:
         task.is_active = payload.is_active
+    if payload.clear_last_done:
+        task.last_done_at = None  # "never done" — back to high priority
+    elif payload.last_done_at is not None:
+        # A correction to history, not a completion: deliberately NO
+        # CompletionLog, so it never inflates the done-today view or
+        # streaks (Phase 5). The decay curve simply re-anchors.
+        task.last_done_at = payload.last_done_at
 
     db.commit()
     db.refresh(task)

@@ -58,10 +58,12 @@ const MODE_COPY: Record<
     emptyBody: "Truly — you're ready for company. Go put the kettle on ☕",
   },
   zone: {
-    tag: "🧭 This week's zone",
+    // Zone sessions launch from "this week's zone" AND (Phase 4.6) the
+    // home time-box with any zone picked — so the tag names no week.
+    tag: "🧭 Zone focus",
     source: "zone",
     emptyTitle: "This zone is feeling fresh",
-    emptyBody: "Its week is going beautifully. Nothing needs you here ✨",
+    emptyBody: "It's in lovely shape — nothing needs you here ✨",
   },
   campaign: {
     tag: "🌷 Campaign",

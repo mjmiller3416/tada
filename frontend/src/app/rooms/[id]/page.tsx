@@ -15,8 +15,10 @@ import {
   type Task,
 } from "@/lib/api";
 import { NAV_ITEMS } from "@/lib/nav";
-import { AppShell, Button, Card } from "@/components/ui";
+import { AppShell, Button, Card, Chip } from "@/components/ui";
 import styles from "./room-detail.module.css";
+
+const MINUTE_CHOICES = [5, 15, 30, 45];
 
 /**
  * One room's planning page: its tasks (everything, including fresh and
@@ -38,6 +40,10 @@ function RoomDetailScreen() {
   const [showForm, setShowForm] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState("");
+  // Optional time budget for the room session (Phase 4.6): null = the
+  // whole room, a number = "give it N minutes". The session flow already
+  // handles room + minutes together — this is only the ask.
+  const [minutes, setMinutes] = useState<number | null>(null);
 
   const room = rooms.find((r) => r.id === roomId);
 
@@ -90,14 +96,40 @@ function RoomDetailScreen() {
       )}
 
       {hasWork && (
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          onClick={() => router.push(`/session?room=${roomId}`)}
-        >
-          Clean this room
-        </Button>
+        <div className={styles.launcher}>
+          <span className={styles.launcherLabel}>How much time do you have?</span>
+          <div className={styles.minuteRow}>
+            {MINUTE_CHOICES.map((m) => (
+              <Chip
+                key={m}
+                tone={minutes === m ? "coral" : "neutral"}
+                onClick={() => setMinutes(minutes === m ? null : m)}
+              >
+                {m} min
+              </Chip>
+            ))}
+            <Chip
+              tone={minutes === null ? "coral" : "neutral"}
+              onClick={() => setMinutes(null)}
+            >
+              The whole room
+            </Chip>
+          </div>
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            onClick={() =>
+              router.push(
+                minutes !== null
+                  ? `/session?room=${roomId}&minutes=${minutes}`
+                  : `/session?room=${roomId}`,
+              )
+            }
+          >
+            {minutes !== null ? `Give it ${minutes} minutes` : "Clean this room"}
+          </Button>
+        </div>
       )}
 
       <div className={styles.taskList}>

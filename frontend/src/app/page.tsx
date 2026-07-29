@@ -14,6 +14,7 @@ import {
   getSettings,
   getZones,
   snoozeTask,
+  updateSettings,
   type Campaign,
   type Effort,
   type FocusResponse,
@@ -22,6 +23,7 @@ import {
   type Zone,
 } from "@/lib/api";
 import { roomTone } from "@/lib/decay";
+import { friendlyDate, toLocalDateValue } from "@/lib/dates";
 import { supplyNote } from "@/lib/supplies";
 import { NAV_ITEMS } from "@/lib/nav";
 import { AppShell, Burst, Button, Card, Chip } from "@/components/ui";
@@ -60,6 +62,12 @@ function HomeScreen({ firstName }: { firstName: string }) {
   const [effort, setEffort] = useState<EffortFilter>("all");
   const [minutes, setMinutes] = useState(15);
   const [currentZone, setCurrentZone] = useState<Zone | null>(null);
+  // The optional zone scope for "I have X minutes" (Phase 4.6). Only
+  // offered when the zones overlay is on — never a dead control.
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [sessionZoneId, setSessionZoneId] = useState<number | null>(null);
+  // Vacation mode (Phase 4.6): "" = home; otherwise the last paused day.
+  const [vacationUntil, setVacationUntil] = useState("");
   const [runningCampaigns, setRunningCampaigns] = useState<Campaign[]>([]);
   const [celebratingId, setCelebratingId] = useState<number | null>(null);
   const [snoozingId, setSnoozingId] = useState<number | null>(null);
@@ -81,13 +89,17 @@ function HomeScreen({ firstName }: { firstName: string }) {
     getSettings()
       .then((s) => {
         setMinutes(s.default_session_minutes);
+        setVacationUntil(s.vacation_until);
         if (s.zones_enabled) {
           getZones()
-            .then((z) =>
+            .then((z) => {
               setCurrentZone(
                 z.zones.find((zone) => zone.id === z.current_zone_id) ?? null,
-              ),
-            )
+              );
+              // Only zones with rooms can scope a session — an empty
+              // zone would just build an empty queue.
+              setZones(z.zones.filter((zone) => zone.rooms.length > 0));
+            })
             .catch(() => {});
         }
         if (s.campaigns_enabled) {
@@ -105,7 +117,22 @@ function HomeScreen({ firstName }: { firstName: string }) {
   function startSession() {
     const params = new URLSearchParams({ minutes: String(minutes) });
     if (effort !== "all") params.set("effort", effort);
+    if (sessionZoneId !== null) {
+      params.set("zone", String(sessionZoneId));
+      const zone = zones.find((z) => z.id === sessionZoneId);
+      if (zone) params.set("label", zone.name);
+    }
     router.push(`/session?${params.toString()}`);
+  }
+
+  async function endVacation() {
+    const previous = vacationUntil;
+    setVacationUntil(""); // optimistic — coming home should feel instant
+    try {
+      await updateSettings({ vacation_until: "" });
+    } catch {
+      setVacationUntil(previous); // roll back quietly, like Settings does
+    }
   }
 
   function startChaosClean() {
@@ -137,6 +164,7 @@ function HomeScreen({ firstName }: { firstName: string }) {
   const loading = focus === null;
   const needsSetup = focus !== null && focus.total_active_tasks === 0;
   const allCaughtUp = focus !== null && !needsSetup && focus.tasks.length === 0;
+  const onVacation = vacationUntil !== "" && toLocalDateValue() <= vacationUntil;
 
   return (
     <AppShell nav={NAV_ITEMS}>
@@ -145,9 +173,11 @@ function HomeScreen({ firstName }: { firstName: string }) {
         <p className={styles.subline}>
           {needsSetup
             ? "Let’s get your home set up."
-            : allCaughtUp
-              ? "Your home feels good today. Enjoy it ✨"
-              : "Here’s a gentle place to start."}
+            : onVacation
+              ? "You’re officially off duty."
+              : allCaughtUp
+                ? "Your home feels good today. Enjoy it ✨"
+                : "Here’s a gentle place to start."}
         </p>
       </header>
 
@@ -165,6 +195,20 @@ function HomeScreen({ firstName }: { firstName: string }) {
             </Button>
           </Link>
         </Card>
+      ) : onVacation ? (
+        /* ---- Vacation mode (Phase 4.6): nudges paused, decay honest ---- */
+        <Card padding="lg" className={styles.vacationCard}>
+          <p className={styles.setupEmoji}>🌴</p>
+          <h2 className={styles.setupTitle}>
+            Everything’s paused until {friendlyDate(vacationUntil)}
+          </h2>
+          <p className={styles.setupBody}>
+            No nudges while you’re away. Have a good trip 🌴
+          </p>
+          <Button variant="secondary" fullWidth onClick={endVacation}>
+            I’m back!
+          </Button>
+        </Card>
       ) : (
         <>
           {/* ---- The "go" moment ---- */}
@@ -181,6 +225,27 @@ function HomeScreen({ firstName }: { firstName: string }) {
                 </Chip>
               ))}
             </div>
+            {/* Optional zone scope (Phase 4.6) — only when the zones
+                overlay is on and at least one zone has rooms. */}
+            {zones.length > 0 && (
+              <select
+                value={sessionZoneId ?? ""}
+                onChange={(e) =>
+                  setSessionZoneId(
+                    e.target.value === "" ? null : Number(e.target.value),
+                  )
+                }
+                className={styles.zoneSelect}
+                aria-label="Focus on a zone (optional)"
+              >
+                <option value="">Anywhere in the house</option>
+                {zones.map((zone) => (
+                  <option key={zone.id} value={zone.id}>
+                    🧭 Just {zone.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <Button variant="primary" size="lg" fullWidth onClick={startSession}>
               I have {minutes} minutes
             </Button>

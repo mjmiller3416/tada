@@ -41,11 +41,12 @@ def _check_pin_free(db: Session, pin: str, exclude_user_id: int | None = None) -
             )
 
 
-def _get_kid(db: Session, member_id: int) -> User:
+def _get_member(db: Session, member_id: int) -> User:
+    """Any household account — kids and owners alike. Since Phase 4.6
+    this surface manages adults too (the seed script is only needed for
+    the very first owner)."""
     user = db.get(User, member_id)
-    if user is None or user.role != "kid":
-        # Only kid accounts are managed here; the owner account lives
-        # outside this surface (scripts/seed_owner.py).
+    if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Member not found")
     return user
 
@@ -67,17 +68,21 @@ def create_member(
     _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> MemberRead:
+    """A new kid login, or — Phase 4.6 — a second adult. An adult
+    (role "owner") sees and can change everything she can: no data is
+    scoped per user and `require_owner` only checks the role, so shared
+    access needs nothing beyond the account itself."""
     _check_pin_free(db, payload.pin)
-    kid = User(
+    member = User(
         name=payload.name,
         email=None,
-        role="kid",
+        role=payload.role,
         password_hash=hash_pin(payload.pin),
     )
-    db.add(kid)
+    db.add(member)
     db.commit()
-    db.refresh(kid)
-    return _to_read(kid, {})
+    db.refresh(member)
+    return _to_read(member, {})
 
 
 @router.patch("/{member_id}", response_model=MemberRead)
@@ -87,15 +92,15 @@ def update_member(
     _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> MemberRead:
-    kid = _get_kid(db, member_id)
+    member = _get_member(db, member_id)
     if payload.name is not None:
-        kid.name = payload.name
+        member.name = payload.name
     if payload.pin is not None:
-        _check_pin_free(db, payload.pin, exclude_user_id=kid.id)
-        kid.password_hash = hash_pin(payload.pin)
+        _check_pin_free(db, payload.pin, exclude_user_id=member.id)
+        member.password_hash = hash_pin(payload.pin)
     db.commit()
-    db.refresh(kid)
-    return _to_read(kid, _assigned_counts(db))
+    db.refresh(member)
+    return _to_read(member, _assigned_counts(db))
 
 
 @router.delete("/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -104,8 +109,19 @@ def delete_member(
     _: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> None:
-    """Removes a kid's login. Their assigned tasks stay (assignee just
-    clears via the FK); their completion history is removed with them."""
-    kid = _get_kid(db, member_id)
-    db.delete(kid)
+    """Removes a member's login. Their assigned tasks stay (assignee just
+    clears via the FK); their completion history is removed with them.
+    The last remaining owner can never be removed — the household must
+    always have an adult who can get in."""
+    member = _get_member(db, member_id)
+    if member.role == "owner":
+        owner_count = db.scalar(
+            select(func.count(User.id)).where(User.role == "owner")
+        )
+        if owner_count <= 1:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "That's the only adult login — add another before removing this one",
+            )
+    db.delete(member)
     db.commit()

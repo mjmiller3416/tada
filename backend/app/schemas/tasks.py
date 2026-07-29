@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.task import Task
 from app.services import scheduling
@@ -48,6 +48,22 @@ class TaskUpdate(BaseModel):
     supply_ids: list[int] | None = None
     notes: str | None = None
     is_active: bool | None = None
+    # "When was this last done?" (Phase 4.6): a correction to history —
+    # the decay engine reads last_done_at as its only anchor, so editing
+    # it is exposing an existing field, never a new scheduling concept.
+    last_done_at: datetime | None = None
+    clear_last_done: bool = False  # back to "never done"; same pattern as clear_room
+
+    @field_validator("last_done_at")
+    @classmethod
+    def validate_last_done_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        if value > datetime.now(timezone.utc):
+            raise ValueError("can't be in the future — it's when it was last done")
+        return value
 
 
 class TaskRead(BaseModel):

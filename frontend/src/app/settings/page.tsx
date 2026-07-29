@@ -19,6 +19,7 @@ import {
   type Settings,
   type ZonesResponse,
 } from "@/lib/api";
+import { friendlyDate, toLocalDateValue } from "@/lib/dates";
 import { NAV_ITEMS } from "@/lib/nav";
 import { AppShell, Button, Card, Chip } from "@/components/ui";
 import styles from "./settings.module.css";
@@ -42,10 +43,14 @@ const TIMEZONES: { value: string; label: string }[] = [
  * you tap — no form to submit.
  */
 export default function SettingsPage() {
-  return <AuthGate ownerOnly>{() => <SettingsScreen />}</AuthGate>;
+  return (
+    <AuthGate ownerOnly>
+      {(user) => <SettingsScreen currentUserId={user.id} />}
+    </AuthGate>
+  );
 }
 
-function SettingsScreen() {
+function SettingsScreen({ currentUserId }: { currentUserId: number }) {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saved, setSaved] = useState(false);
@@ -226,7 +231,48 @@ function SettingsScreen() {
           </div>
         </Card>
 
-        <HouseholdSection />
+        {/* ---- Vacation mode (Phase 4.6): pause the nudges, keep the
+             decay running — an honest picture to come home to. ---- */}
+        <Card className={styles.section}>
+          <h2 className={styles.heading}>Time away</h2>
+          <p className={styles.help}>
+            Heading out? Tada holds every nudge until you’re back. Your home
+            keeps its honest picture in the meantime — no guilt, just a clear
+            place to pick back up.
+          </p>
+
+          {settings.vacation_until === "" ? (
+            <div className={styles.setting}>
+              <span className={styles.label}>When are you back?</span>
+              <input
+                type="date"
+                min={toLocalDateValue()}
+                value=""
+                onChange={(e) =>
+                  e.target.value && save({ vacation_until: e.target.value })
+                }
+                className={styles.input}
+                aria-label="Last day away"
+              />
+            </div>
+          ) : (
+            <>
+              <p className={styles.help}>
+                Everything’s paused until{" "}
+                {friendlyDate(settings.vacation_until)}. Have a good trip 🌴
+              </p>
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => save({ vacation_until: "" })}
+              >
+                I’m back!
+              </Button>
+            </>
+          )}
+        </Card>
+
+        <HouseholdSection currentUserId={currentUserId} />
 
         {/* ---- Phase 3 overlays: opt-in extras over the core (SPEC §6) ---- */}
         <Card className={styles.section}>

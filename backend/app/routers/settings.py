@@ -18,6 +18,7 @@ def _to_read(values: dict[str, str]) -> SettingsRead:
         timezone=values["timezone"],
         zones_enabled=values["zones_enabled"] == "true",
         campaigns_enabled=values["campaigns_enabled"] == "true",
+        vacation_until=values["vacation_until"],
     )
 
 
