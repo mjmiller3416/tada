@@ -39,7 +39,11 @@ def daily_focus(
     limit = int(settings_service.get_setting(db, current_user.id, "daily_focus_count"))
     effort = effort if effort in ("quick", "deep") else None
     tasks = scheduling.daily_focus(
-        db, limit=limit, for_user_id=current_user.id, effort=effort
+        db,
+        limit=limit,
+        for_user_id=current_user.id,
+        effort=effort,
+        tz=settings_service.user_timezone(db, current_user.id),
     )
     total = db.scalar(select(func.count(Task.id)).where(Task.is_active.is_(True))) or 0
     return FocusResponse(
@@ -58,12 +62,13 @@ def build_session(
     a room, and — Phase 3 — guest/Chaos mode, "this week's zone", or a
     campaign's daily slice. The frontend presents the result one task at
     a time — never as a list."""
+    tz = settings_service.user_timezone(db, current_user.id)
     if payload.campaign_id is not None:
         campaign = db.get(Campaign, payload.campaign_id)
         if campaign is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
         today = zone_service.local_today(db, current_user.id)
-        tasks = campaign_service.today_slice(db, campaign, today)
+        tasks = campaign_service.today_slice(db, campaign, today, tz=tz)
     else:
         tasks = scheduling.build_session(
             db,
@@ -74,6 +79,7 @@ def build_session(
             zone_id=payload.zone_id,
             guest_only=payload.guest,
             exclude_ids=set(payload.exclude_task_ids) or None,
+            tz=tz,
         )
     return SessionBuildResponse(
         tasks=[task_to_read(t) for t in tasks],

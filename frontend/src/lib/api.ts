@@ -100,6 +100,10 @@ export type Task = {
   estimated_minutes: number;
   effort: Effort;
   guest_facing: boolean;
+  /** "Usually a Saturday job" (Phase 8): Monday = 0 … Sunday = 6, null =
+   * no preference. A ranking boost on that day (and the day after) —
+   * never a deadline. */
+  preferred_day: number | null;
   last_done_at: string | null;
   snoozed_until: string | null;
   is_snoozed: boolean;
@@ -124,6 +128,7 @@ export type TaskInput = {
   claimable?: boolean;
   supply_ids?: number[];
   notes?: string | null;
+  preferred_day?: number | null;
 };
 
 export function getTasks(params?: {
@@ -158,6 +163,8 @@ export function updateTask(
      * Never writes a CompletionLog; the decay curve simply re-anchors. */
     last_done_at?: string;
     clear_last_done?: boolean;
+    /** Back to "no set day" (Phase 8); same pattern as clear_room. */
+    clear_preferred_day?: boolean;
   },
 ) {
   return apiFetch<Task>(`/api/tasks/${id}`, {

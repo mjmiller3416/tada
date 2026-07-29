@@ -8,7 +8,7 @@ day across the window.
 """
 
 import math
-from datetime import date
+from datetime import date, tzinfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,7 +31,9 @@ def progress(campaign: Campaign) -> tuple[int, int]:
     return done, total
 
 
-def today_slice(db: Session, campaign: Campaign, today: date) -> list[Task]:
+def today_slice(
+    db: Session, campaign: Campaign, today: date, tz: tzinfo | None = None
+) -> list[Task]:
     """The campaign tasks to offer today (SPEC §6: "spread over days").
 
     Remaining work divided evenly across the days left in the window
@@ -51,7 +53,7 @@ def today_slice(db: Session, campaign: Campaign, today: date) -> list[Task]:
             select(Task).where(Task.id.in_(remaining_ids), Task.is_active.is_(True))
         ).all()
     )
-    ranked = scheduling.rank_tasks(tasks)
+    ranked = scheduling.rank_tasks(tasks, tz=tz)
 
     days_left = max((campaign.end_date - max(today, campaign.start_date)).days + 1, 1)
     per_day = math.ceil(len(ranked) / days_left)

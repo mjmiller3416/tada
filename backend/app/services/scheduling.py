@@ -12,7 +12,7 @@ constants below — they are deliberately collected at the top because this
 module will be read and adjusted often.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -34,6 +34,14 @@ NEVER_DONE_RATIO = 1.5
 #: done today (ratio >= 1.0), so dailies reliably surface each day even
 #: against longer-cadence tasks with slightly higher ratios (SPEC §4).
 DAILY_BOOST = 0.5
+
+#: Added on a task's preferred day (and the following grace day) — Phase
+#: 8. A BOOST, never a schedule: strong enough that weekly laundry at
+#: ratio ~1.0 scores ~3.0 on Saturday and leads over anything overdue or
+#: never-done (1.5) in normal conditions, while a truly neglected task —
+#: three-plus cadences past due — can still edge above it. Additive, not
+#: a pin, so tasks sharing a preferred day keep their decay order.
+PREFERRED_DAY_BOOST = 2.0
 
 #: Color band thresholds (SPEC §4).
 BAND_AGING = 0.5   # below: fresh (green)
@@ -90,13 +98,43 @@ def band_for_ratio(ratio: float) -> str:
     return "overdue"
 
 
-def priority_score(task: Task, now: datetime | None = None) -> float:
-    """The ranking signal: the ratio, plus a boost that keeps daily
-    tasks surfacing every day (SPEC §4)."""
+def preferred_day_boost(
+    task: Task, now: datetime | None = None, tz: tzinfo | None = None
+) -> float:
+    """The Phase 8 preferred-day boost — a preference, never a deadline.
+
+    Boosted on the preferred day and the following day (the grace day:
+    laundry set to Saturday is boosted Saturday, boosted Sunday if it
+    didn't happen, then quiet until next Saturday). "Today" is her local
+    day, so `tz` should come from her settings; without it, UTC.
+
+    Fresh tasks never boost: done on Wednesday, laundry decays normally
+    and Saturday simply stays quiet — that is the whole answer to "does
+    Saturday still fire?", and it keeps the planning list honest too.
+    Ranking only — dirtiness, bands, and last_done_at are untouched, and
+    missing the day carries no penalty and no overdue state anywhere."""
+    if task.preferred_day is None:
+        return 0.0
+    if dirtiness_ratio(task, now) < BAND_AGING:
+        return 0.0
+    now = now or _utcnow()
+    today = now.astimezone(tz or timezone.utc).weekday()  # Monday = 0
+    grace_day = (task.preferred_day + 1) % 7
+    if today in (task.preferred_day, grace_day):
+        return PREFERRED_DAY_BOOST
+    return 0.0
+
+
+def priority_score(
+    task: Task, now: datetime | None = None, tz: tzinfo | None = None
+) -> float:
+    """The ranking signal: the ratio, plus the boost that keeps daily
+    tasks surfacing every day (SPEC §4), plus the Phase 8 preferred-day
+    boost."""
     ratio = dirtiness_ratio(task, now)
     if task.cadence_days == 1 and ratio >= 1.0:
         ratio += DAILY_BOOST
-    return ratio
+    return ratio + preferred_day_boost(task, now, tz)
 
 
 def is_snoozed(task: Task, now: datetime | None = None) -> bool:
@@ -104,16 +142,19 @@ def is_snoozed(task: Task, now: datetime | None = None) -> bool:
     return task.snoozed_until is not None and _aware(task.snoozed_until) > now
 
 
-def rank_tasks(tasks: list[Task], now: datetime | None = None) -> list[Task]:
-    """Priority ranking (SPEC §4): score (= ratio + daily boost) descending.
+def rank_tasks(
+    tasks: list[Task], now: datetime | None = None, tz: tzinfo | None = None
+) -> list[Task]:
+    """Priority ranking (SPEC §4): score (= ratio + boosts) descending.
     Tie-breaks: higher raw ratio (which also puts overdue before due),
-    then longer since last_done_at, with never-done counting as longest."""
+    then longer since last_done_at, with never-done counting as longest.
+    `tz` (her local timezone) anchors the preferred-day boost's "today"."""
     now = now or _utcnow()
     beginning = datetime.min.replace(tzinfo=timezone.utc)
 
     def sort_key(task: Task):
         return (
-            -priority_score(task, now),
+            -priority_score(task, now, tz),
             -dirtiness_ratio(task, now),
             _aware(task.last_done_at) if task.last_done_at else beginning,
         )
@@ -134,6 +175,7 @@ def candidate_tasks(
     zone_id: int | None = None,
     guest_only: bool = False,
     now: datetime | None = None,
+    tz: tzinfo | None = None,
 ) -> list[Task]:
     """Active, un-snoozed tasks matching the lens filters, priority-ranked.
 
@@ -175,7 +217,7 @@ def candidate_tasks(
         for t in tasks
         if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
     ]
-    return rank_tasks(eligible, now)
+    return rank_tasks(eligible, now, tz)
 
 
 def daily_focus(
@@ -185,11 +227,14 @@ def daily_focus(
     for_user_id: int | None = None,
     effort: str | None = None,
     now: datetime | None = None,
+    tz: tzinfo | None = None,
 ) -> list[Task]:
     """The calm home screen (SPEC §6): the top `limit` tasks by priority —
     never a wall. An empty result means the home is genuinely in good
     shape and the UI should say so warmly."""
-    return candidate_tasks(db, for_user_id=for_user_id, effort=effort, now=now)[:limit]
+    return candidate_tasks(
+        db, for_user_id=for_user_id, effort=effort, now=now, tz=tz
+    )[:limit]
 
 
 def build_session(
@@ -203,6 +248,7 @@ def build_session(
     guest_only: bool = False,
     exclude_ids: set[int] | None = None,
     now: datetime | None = None,
+    tz: tzinfo | None = None,
 ) -> list[Task]:
     """Build the ordered task list for a focus session (SPEC §5).
 
@@ -225,6 +271,7 @@ def build_session(
         zone_id=zone_id,
         guest_only=guest_only,
         now=now,
+        tz=tz,
     )
     if exclude_ids:
         candidates = [t for t in candidates if t.id not in exclude_ids]
@@ -244,7 +291,7 @@ def build_session(
 
 
 def chores_for_user(
-    db: Session, user_id: int, now: datetime | None = None
+    db: Session, user_id: int, now: datetime | None = None, tz: tzinfo | None = None
 ) -> tuple[list[Task], list[Task]]:
     """The kid surface (SPEC §6 multi-user): (my chores, up for grabs),
     each priority-ranked.
@@ -264,9 +311,9 @@ def chores_for_user(
         for t in tasks
         if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
     ]
-    mine = rank_tasks([t for t in eligible if t.assignee_id == user_id], now)
+    mine = rank_tasks([t for t in eligible if t.assignee_id == user_id], now, tz)
     up_for_grabs = rank_tasks(
-        [t for t in eligible if t.assignee_id is None and t.claimable], now
+        [t for t in eligible if t.assignee_id is None and t.claimable], now, tz
     )
     return mine, up_for_grabs
 

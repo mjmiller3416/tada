@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -20,6 +20,11 @@ class Task(Base):
     `claimable` marks an unassigned task as "up for grabs" so kids can
     claim it. A task assigned to someone else stays out of your own
     doing-surfaces (it's delegated), but planning views show everything.
+
+    `preferred_day` (Phase 8) is a ranking BOOST, never a schedule:
+    Python weekday() convention (Monday = 0 ... Sunday = 6), null = no
+    preference. The task still decays normally — missing the day carries
+    no penalty and creates no overdue state.
     """
 
     __tablename__ = "tasks"
@@ -37,6 +42,9 @@ class Task(Base):
     estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     effort: Mapped[str] = mapped_column(String(10), nullable=False, default="quick")  # "quick" | "deep"
     guest_facing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    preferred_day: Mapped[int | None] = mapped_column(
+        SmallInteger, nullable=True, default=None
+    )  # Monday = 0 ... Sunday = 6; null = no preference (Phase 8)
 
     last_done_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

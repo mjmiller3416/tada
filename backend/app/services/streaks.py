@@ -17,7 +17,6 @@ here. The rules, in her local calendar (never UTC):
 """
 
 from datetime import date, datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -32,12 +31,7 @@ GRACE_GAP_DAYS = 2
 def _local_date(db: Session, user_id: int, now: datetime) -> date:
     """`now` as the user's local calendar day. A "day" for streaks means
     her day, so the streak flips at her midnight, not UTC's."""
-    tz_name = settings_service.get_setting(db, user_id, "timezone")
-    try:
-        tz = ZoneInfo(tz_name)
-    except Exception:
-        tz = timezone.utc
-    return now.astimezone(tz).date()
+    return now.astimezone(settings_service.user_timezone(db, user_id)).date()
 
 
 def _frozen_days_between(start: date, end: date, freeze_until: date | None) -> int:

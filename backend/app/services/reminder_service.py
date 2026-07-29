@@ -177,7 +177,12 @@ def compose_daily_nudge(db: Session, user: User) -> tuple[str, str]:
     """The nudge content, composed at send time from the live priority
     ranking so it always reflects today's actual state."""
     first_name = user.name.split()[0] if user.name else "there"
-    top = scheduling.daily_focus(db, limit=1, for_user_id=user.id)
+    top = scheduling.daily_focus(
+        db,
+        limit=1,
+        for_user_id=user.id,
+        tz=settings_service.user_timezone(db, user.id),
+    )
     if not top:
         return (
             f"Good morning, {first_name} ☀️",

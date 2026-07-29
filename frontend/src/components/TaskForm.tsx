@@ -33,6 +33,18 @@ type TaskFormProps = {
 
 const CUSTOM = "custom";
 
+// Python weekday() convention, matching the backend: Monday = 0 … Sunday = 6.
+const DAY_CHIPS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_NAMES = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
 function presetFor(days: number): string {
   const preset = CADENCE_PRESETS.find((p) => p.days === days);
   return preset ? String(preset.days) : CUSTOM;
@@ -70,6 +82,11 @@ export default function TaskForm({
     String(task?.estimated_minutes ?? 10),
   );
   const [effort, setEffort] = useState<Effort>(task?.effort ?? "quick");
+  // Preferred day (Phase 8): a preference, never a deadline — the task
+  // just gets a friendly boost that day (and the day after).
+  const [preferredDay, setPreferredDay] = useState<number | null>(
+    task?.preferred_day ?? null,
+  );
   const [assigneeId, setAssigneeId] = useState<number | null>(
     task?.assignee_id ?? null,
   );
@@ -129,6 +146,9 @@ export default function TaskForm({
           cadence_days: cadenceDays,
           estimated_minutes: estimatedMinutes,
           effort,
+          ...(preferredDay != null
+            ? { preferred_day: preferredDay }
+            : { clear_preferred_day: true }),
           ...(assigneeId != null
             ? { assignee_id: assigneeId }
             : { clear_assignee: true }),
@@ -152,6 +172,7 @@ export default function TaskForm({
           cadence_days: cadenceDays,
           estimated_minutes: estimatedMinutes,
           effort,
+          preferred_day: preferredDay,
           assignee_id: assigneeId,
           claimable,
           supply_ids: supplyIds,
@@ -267,6 +288,32 @@ export default function TaskForm({
                 days
               </label>
             )}
+          </div>
+
+          <div className={styles.field}>
+            <span className={styles.label}>Usually a certain day? (optional)</span>
+            <div className={styles.chips}>
+              <Chip
+                tone={preferredDay === null ? "coral" : "neutral"}
+                onClick={() => setPreferredDay(null)}
+              >
+                No set day
+              </Chip>
+              {DAY_CHIPS.map((label, day) => (
+                <Chip
+                  key={label}
+                  tone={preferredDay === day ? "coral" : "neutral"}
+                  onClick={() => setPreferredDay(day)}
+                >
+                  {label}
+                </Chip>
+              ))}
+            </div>
+            <span className={styles.hint}>
+              {preferredDay !== null
+                ? `Usually a ${DAY_NAMES[preferredDay]} job — it’ll get a friendly nudge up the list that day (and the day after). Never a deadline.`
+                : "Just a preference, if this one has a rhythm — it’ll get a friendly nudge that day, never a due date."}
+            </span>
           </div>
 
           {task && (

@@ -64,6 +64,7 @@ Task                        # the central entity
   estimated_minutes: int
   effort: "quick" | "deep"   # two levels only
   guest_facing: bool         # used by guest/Chaos mode
+  preferred_day: int (nullable)        # Phase 8: Mon=0..Sun=6; a ranking BOOST, never a due date
   last_done_at: timestamp (nullable)   # null = never done
   assignee_id -> User (nullable)
   is_active: bool
@@ -129,6 +130,8 @@ ratio = (now - last_done_at) / cadence_days       # in matching units
 - `ratio ≥ 1.2` → overdue (red)
 
 **Priority ranking** (used by every "what should I do" feature): sort candidate tasks by `ratio` descending. Tie-breaks: overdue before due, then higher `ratio`, then longer since `last_done_at`. Daily-cadence tasks should be weighted so they reliably surface each day.
+
+**Preferred-day boost (Phase 8, optional).** A task may carry a `preferred_day` (Mon=0..Sun=6, null = no preference). On that day — her local day, not UTC — and the following grace day, a strong *additive* boost lifts the task in the ranking, so laundry leads on Saturday (and Sunday if it didn't happen), then goes quiet until next Saturday. It is a boost, never a schedule: `ratio`, the bands, and `last_done_at` are untouched, fresh tasks (below the aging threshold) never boost, a genuinely neglected task can still outrank a boosted one, and missing the day carries no penalty, no overdue state, and no notification.
 
 **Completion** sets `last_done_at = now`, which drops `ratio` to 0 and restarts the curve. Write a `CompletionLog` row on every completion.
 

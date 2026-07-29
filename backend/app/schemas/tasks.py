@@ -31,6 +31,9 @@ class TaskCreate(BaseModel):
     claimable: bool = False
     supply_ids: list[int] | None = None
     notes: str | None = None
+    # "Usually a Saturday job" (Phase 8): Monday = 0 ... Sunday = 6.
+    # A ranking preference, never a deadline; None = no preference.
+    preferred_day: int | None = Field(default=None, ge=0, le=6)
 
 
 class TaskUpdate(BaseModel):
@@ -53,6 +56,9 @@ class TaskUpdate(BaseModel):
     # it is exposing an existing field, never a new scheduling concept.
     last_done_at: datetime | None = None
     clear_last_done: bool = False  # back to "never done"; same pattern as clear_room
+    # Preferred day (Phase 8): a preference, never a deadline.
+    preferred_day: int | None = Field(default=None, ge=0, le=6)
+    clear_preferred_day: bool = False  # back to "no set day"; same pattern as clear_room
 
     @field_validator("last_done_at")
     @classmethod
@@ -79,6 +85,7 @@ class TaskRead(BaseModel):
     estimated_minutes: int
     effort: str
     guest_facing: bool
+    preferred_day: int | None
     last_done_at: datetime | None
     snoozed_until: datetime | None
     is_snoozed: bool
@@ -104,6 +111,7 @@ def task_to_read(task: Task, now: datetime | None = None) -> TaskRead:
         estimated_minutes=task.estimated_minutes,
         effort=task.effort,
         guest_facing=task.guest_facing,
+        preferred_day=task.preferred_day,
         last_done_at=task.last_done_at,
         snoozed_until=task.snoozed_until,
         is_snoozed=scheduling.is_snoozed(task, now),

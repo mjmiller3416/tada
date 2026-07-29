@@ -8,7 +8,6 @@ everyday upkeep underneath.
 """
 
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -43,12 +42,7 @@ _AUTO_MAP: list[tuple[tuple[str, ...], int]] = [
 def local_today(db: Session, user_id: int) -> date:
     """Today in the owner's timezone (a Settings value) — zone weeks and
     campaign windows should flip at her midnight, not UTC's."""
-    tz_name = settings_service.get_setting(db, user_id, "timezone")
-    try:
-        tz = ZoneInfo(tz_name)
-    except Exception:
-        tz = ZoneInfo("UTC")
-    return datetime.now(tz).date()
+    return datetime.now(settings_service.user_timezone(db, user_id)).date()
 
 
 def week_of_month(today: date) -> int:

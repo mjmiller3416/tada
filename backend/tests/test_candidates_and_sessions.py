@@ -234,3 +234,30 @@ class TestBuildSession:
         c = add_task(name="c", last_done_at=days_ago(10.5), estimated_minutes=10)  # 1.5
         session = build_session(db, minutes=20, exclude_ids={a.id}, now=NOW)
         assert session == [b, c]
+
+
+# ---------------------------------------------------------------------------
+# Preferred-day boost (Phase 8) — end to end through the session builder
+# ---------------------------------------------------------------------------
+
+class TestPreferredDayInSessions:
+    def test_saturday_laundry_leads_a_saturday_session(self, db, add_task):
+        # Saturday noon UTC. Boosted laundry (1.0 + 2.0) jumps a dirtier
+        # ordinary task (2.0) — and the boost rides through candidate
+        # ranking and the greedy fill untouched.
+        saturday = datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)
+        assert saturday.weekday() == 5
+        laundry = add_task(
+            name="laundry",
+            preferred_day=5,
+            last_done_at=saturday - timedelta(days=7),   # 1.0
+        )
+        bathroom = add_task(
+            name="bathroom",
+            last_done_at=saturday - timedelta(days=14),  # 2.0
+        )
+        assert candidate_tasks(db, now=saturday) == [laundry, bathroom]
+        assert build_session(db, minutes=30, now=saturday) == [laundry, bathroom]
+        # Midweek the same pair falls back to plain decay order.
+        wednesday = saturday + timedelta(days=4)
+        assert candidate_tasks(db, now=wednesday)[0] is bathroom

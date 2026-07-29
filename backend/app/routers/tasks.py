@@ -17,7 +17,7 @@ from app.schemas.tasks import (
     task_to_read,
 )
 from app.services import campaigns as campaign_service
-from app.services import reminder_service, scheduling
+from app.services import reminder_service, scheduling, settings_service
 from app.services import zones as zone_service
 from app.services.push_service import notify_owners
 
@@ -56,7 +56,7 @@ def list_tasks(
     effort: str | None = None,
     category: str | None = None,
     include_inactive: bool = False,
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> list[TaskRead]:
     """The global/task planning view (SPEC §6): the flat list, dirtiest
@@ -73,7 +73,10 @@ def list_tasks(
     if category in ("cleaning", "maintenance"):
         query = query.where(Task.category == category)
 
-    tasks = scheduling.rank_tasks(list(db.scalars(query).all()))
+    tasks = scheduling.rank_tasks(
+        list(db.scalars(query).all()),
+        tz=settings_service.user_timezone(db, current_user.id),
+    )
     return [task_to_read(task) for task in tasks]
 
 
@@ -93,6 +96,7 @@ def create_task(
         estimated_minutes=payload.estimated_minutes,
         effort=payload.effort,
         guest_facing=payload.guest_facing,
+        preferred_day=payload.preferred_day,
         assignee_id=payload.assignee_id,
         claimable=payload.claimable,
         notes=payload.notes,
@@ -131,6 +135,10 @@ def update_task(
         task.effort = payload.effort
     if payload.guest_facing is not None:
         task.guest_facing = payload.guest_facing
+    if payload.clear_preferred_day:
+        task.preferred_day = None  # back to "no set day"
+    elif payload.preferred_day is not None:
+        task.preferred_day = payload.preferred_day
     if payload.clear_assignee:
         task.assignee_id = None
     elif payload.assignee_id is not None:

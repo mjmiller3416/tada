@@ -55,6 +55,7 @@ def make_task():
             estimated_minutes=10,
             effort="quick",
             guest_facing=False,
+            preferred_day=None,
             last_done_at=None,
             snoozed_until=None,
             assignee_id=None,

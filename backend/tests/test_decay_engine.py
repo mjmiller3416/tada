@@ -14,16 +14,20 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from zoneinfo import ZoneInfo
+
 from app.services.scheduling import (
     BAND_AGING,
     BAND_DUE,
     BAND_OVERDUE,
     DAILY_BOOST,
     NEVER_DONE_RATIO,
+    PREFERRED_DAY_BOOST,
     SNOOZE_OFFSETS,
     band_for_ratio,
     dirtiness_ratio,
     is_snoozed,
+    preferred_day_boost,
     priority_score,
     rank_tasks,
     room_aggregate_ratio,
@@ -286,3 +290,146 @@ class TestSnooze:
         snooze_task(task, "few_days", NOW)
         assert task.last_done_at == last_done
         assert dirtiness_ratio(task, NOW) == ratio_before
+
+
+# ---------------------------------------------------------------------------
+# Preferred-day boost (Phase 8) — a BOOST, never a schedule
+# ---------------------------------------------------------------------------
+
+# Her scenario verbatim: laundry is a Saturday thing. Python weekday()
+# convention throughout (Monday = 0 ... Sunday = 6).
+SATURDAY = 5
+SUNDAY = 6
+SAT_NOON = datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)   # a Saturday
+SUN_NOON = SAT_NOON + timedelta(days=1)                          # the grace day
+MON_NOON = SAT_NOON + timedelta(days=2)                          # quiet again
+WED_NOON = SAT_NOON + timedelta(days=4)                          # an ordinary day
+
+
+def test_weekday_fixture_sanity():
+    assert SAT_NOON.weekday() == SATURDAY
+    assert SUN_NOON.weekday() == SUNDAY
+
+
+class TestPreferredDayBoost:
+    def laundry(self, make_task, last_done: datetime):
+        return make_task(
+            name="laundry", cadence_days=7, preferred_day=SATURDAY, last_done_at=last_done
+        )
+
+    def test_boosted_on_the_preferred_day(self, make_task):
+        # Done last Saturday -> ratio 1.0 today. Boosted, it leads over a
+        # never-done task (1.5) and a genuinely overdue weekly (2.0) —
+        # "laundry leads on Saturday in normal conditions".
+        laundry = self.laundry(make_task, SAT_NOON - timedelta(days=7))
+        never = make_task(name="never", cadence_days=7, last_done_at=None)
+        overdue = make_task(
+            name="overdue", cadence_days=7, last_done_at=SAT_NOON - timedelta(days=14)
+        )
+        assert preferred_day_boost(laundry, SAT_NOON) == PREFERRED_DAY_BOOST
+        assert priority_score(laundry, SAT_NOON) == pytest.approx(1.0 + PREFERRED_DAY_BOOST)
+        assert rank_tasks([never, overdue, laundry], SAT_NOON) == [laundry, overdue, never]
+
+    def test_boosted_on_the_grace_day(self, make_task):
+        # It didn't happen Saturday: still boosted Sunday.
+        laundry = self.laundry(make_task, SAT_NOON - timedelta(days=7))
+        assert preferred_day_boost(laundry, SUN_NOON) == PREFERRED_DAY_BOOST
+        assert priority_score(laundry, SUN_NOON) == pytest.approx(
+            8 / 7 + PREFERRED_DAY_BOOST
+        )
+
+    def test_quiet_after_the_grace_day(self, make_task):
+        # Monday: no boost, no penalty, no different state — the task just
+        # keeps decaying like any other until next Saturday.
+        laundry = self.laundry(make_task, SAT_NOON - timedelta(days=7))
+        assert preferred_day_boost(laundry, MON_NOON) == 0.0
+        assert priority_score(laundry, MON_NOON) == dirtiness_ratio(laundry, MON_NOON)
+
+    def test_quiet_on_an_ordinary_day(self, make_task):
+        # Midweek, a dirtier task outranks Saturday-tagged laundry as if
+        # the preference didn't exist.
+        laundry = self.laundry(make_task, WED_NOON - timedelta(days=7))       # 1.0
+        dirtier = make_task(
+            name="dirtier", cadence_days=7, last_done_at=WED_NOON - timedelta(days=8)
+        )  # ~1.14
+        assert preferred_day_boost(laundry, WED_NOON) == 0.0
+        assert rank_tasks([laundry, dirtier], WED_NOON) == [dirtier, laundry]
+
+    def test_no_preference_means_no_boost(self, make_task):
+        plain = make_task(name="plain", cadence_days=7, last_done_at=days_ago(7))
+        assert preferred_day_boost(plain, NOW) == 0.0
+
+    def test_shared_preferred_day_keeps_decay_order(self, make_task):
+        # Two Saturday jobs boost equally and order among themselves by
+        # normal decay priority — additive boost, not a pin.
+        towels = make_task(
+            name="towels",
+            cadence_days=7,
+            preferred_day=SATURDAY,
+            last_done_at=SAT_NOON - timedelta(days=10.5),  # 1.5
+        )
+        laundry = self.laundry(make_task, SAT_NOON - timedelta(days=7))  # 1.0
+        assert preferred_day_boost(towels, SAT_NOON) == preferred_day_boost(
+            laundry, SAT_NOON
+        )
+        assert rank_tasks([laundry, towels], SAT_NOON) == [towels, laundry]
+
+    def test_neglected_task_still_edges_above_a_boosted_one(self, make_task):
+        # NOT a pin: something truly neglected (3.5 cadences past due)
+        # outranks boosted laundry at ratio 1.0 + 2.0 = 3.0.
+        laundry = self.laundry(make_task, SAT_NOON - timedelta(days=7))
+        neglected = make_task(
+            name="neglected", cadence_days=7, last_done_at=SAT_NOON - timedelta(days=24.5)
+        )  # 3.5
+        assert rank_tasks([laundry, neglected], SAT_NOON) == [neglected, laundry]
+
+    def test_fresh_task_never_boosts(self, make_task):
+        # She did laundry Wednesday: by Saturday the ratio is 3/7 (fresh),
+        # so Saturday simply stays quiet — the decay answers "does
+        # Saturday still fire?" and the planning list stays honest.
+        laundry = self.laundry(make_task, SAT_NOON - timedelta(days=3))
+        assert dirtiness_ratio(laundry, SAT_NOON) < BAND_AGING
+        assert preferred_day_boost(laundry, SAT_NOON) == 0.0
+        assert priority_score(laundry, SAT_NOON) == dirtiness_ratio(laundry, SAT_NOON)
+
+    def test_boost_gate_matches_the_aging_threshold(self, make_task):
+        # Exactly at BAND_AGING (3.5 of 7 days = 0.5) the task is no
+        # longer fresh, so the boost applies.
+        laundry = self.laundry(make_task, SAT_NOON - timedelta(days=3.5))
+        assert preferred_day_boost(laundry, SAT_NOON) == PREFERRED_DAY_BOOST
+
+    def test_never_done_task_boosts_on_its_day(self, make_task):
+        never = make_task(name="never", cadence_days=7, preferred_day=SATURDAY)
+        assert priority_score(never, SAT_NOON) == NEVER_DONE_RATIO + PREFERRED_DAY_BOOST
+
+    def test_sunday_grace_wraps_to_monday(self, make_task):
+        # preferred_day=6 (Sunday) must grace into Monday, not weekday 7.
+        sunday_job = make_task(
+            name="sheets",
+            cadence_days=7,
+            preferred_day=SUNDAY,
+            last_done_at=MON_NOON - timedelta(days=7),
+        )
+        assert preferred_day_boost(sunday_job, MON_NOON) == PREFERRED_DAY_BOOST
+        assert preferred_day_boost(sunday_job, WED_NOON) == 0.0
+
+    def test_today_means_her_local_day_not_utc(self, make_task):
+        # Monday 02:00 UTC is still Sunday evening in New York — the grace
+        # day. Without her timezone the boost would already have lapsed.
+        late_sunday = datetime(2026, 7, 6, 2, 0, 0, tzinfo=timezone.utc)
+        new_york = ZoneInfo("America/New_York")
+        laundry = self.laundry(make_task, late_sunday - timedelta(days=7))
+        assert preferred_day_boost(laundry, late_sunday, tz=new_york) == PREFERRED_DAY_BOOST
+        assert preferred_day_boost(laundry, late_sunday) == 0.0
+
+    def test_boost_never_touches_ratio_band_or_last_done(self, make_task):
+        # Ranking only: dirtiness, its band, and the anchor are identical
+        # on and off the preferred day — nothing ever becomes "overdue"
+        # because of a day preference.
+        last_done = SAT_NOON - timedelta(days=7)
+        laundry = self.laundry(make_task, last_done)
+        assert dirtiness_ratio(laundry, SAT_NOON) == 1.0
+        assert band_for_ratio(dirtiness_ratio(laundry, SAT_NOON)) == "due"
+        priority_score(laundry, SAT_NOON)
+        assert laundry.last_done_at == last_done
+        assert dirtiness_ratio(laundry, SAT_NOON) == 1.0

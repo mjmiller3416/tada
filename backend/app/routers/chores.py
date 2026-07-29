@@ -6,7 +6,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.chores import ChoresResponse
 from app.schemas.tasks import task_to_read
-from app.services import scheduling
+from app.services import scheduling, settings_service
 
 router = APIRouter(prefix="/api/chores", tags=["chores"])
 
@@ -19,7 +19,9 @@ def my_chores(
     """The kid home surface (SPEC §6 multi-user): my chores plus what's up
     for grabs, both priority-ranked by the same decay engine. Deliberately
     the whole kid API — kids see chores and check them off, nothing more."""
-    mine, up_for_grabs = scheduling.chores_for_user(db, current_user.id)
+    mine, up_for_grabs = scheduling.chores_for_user(
+        db, current_user.id, tz=settings_service.user_timezone(db, current_user.id)
+    )
     return ChoresResponse(
         mine=[task_to_read(t) for t in mine],
         up_for_grabs=[task_to_read(t) for t in up_for_grabs],

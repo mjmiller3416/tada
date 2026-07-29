@@ -1,7 +1,8 @@
 """Per-user settings (SPEC §3 `Setting`): a small key/value store with
 defaults, so features read one merged dict and unset keys just work."""
 
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone, tzinfo
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -44,6 +45,16 @@ def get_settings(db: Session, user_id: int) -> dict[str, str]:
 
 def get_setting(db: Session, user_id: int, key: str) -> str:
     return get_settings(db, user_id)[key]
+
+
+def user_timezone(db: Session, user_id: int) -> tzinfo:
+    """The user's timezone (a Settings value), UTC if the stored name is
+    bad. Anything that reasons about "her day" — streak days, zone weeks,
+    the preferred-day boost — resolves it through here."""
+    try:
+        return ZoneInfo(get_setting(db, user_id, "timezone"))
+    except Exception:
+        return timezone.utc
 
 
 def set_settings(db: Session, user_id: int, updates: dict[str, str]) -> dict[str, str]:
