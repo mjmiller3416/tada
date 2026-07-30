@@ -820,38 +820,6 @@ deadline.
 
 ---
 
-## Deferred and cut
-
-**Notification badge icon — deferred (on the backburner, not forgotten).** The status-bar icon
-renders as a blank square. Diagnosed: `frontend/public/sw.js` sets `badge: "/icons/icon-192.png"`,
-but Android masks the badge and derives a silhouette from the alpha channel alone. The 192 icon
-is `"purpose": "any maskable"`, so it's fully opaque and the silhouette is a square. The fix is
-a dedicated 96×96 monochrome white-on-transparent PNG, then pointing `badge` at it. Also worth
-checking whether `/icons/icon-192.png` is still a Phase 0 placeholder. Explicitly excluded from
-Phase 4.5.
-
-**Third effort tier — cut.** She felt there was a middle ground between Quick Wins and Deep
-Clean but couldn't name an example, and said she can go without. It's also the most expensive
-item on the list: `effort` is a two-value enum threaded through the model, roughly 100 seeded
-starter tasks, guest mode's `effort == "quick"` filter, the task form, and the home chips.
-Worth noting *why* it feels wrong to her — effort is about energy but the data conflates it
-with duration (a 20-minute "fold laundry" is tagged quick; a 10-minute washer run is tagged
-deep). Revisit only with three concrete examples in hand, and migrate by rule rather than
-re-tagging by hand.
-
-**Budget app integration — deferred by design.** Phase 6 adds per-item prices, which is the
-foundation. When the budget app exists, model the link on the MealGenie integration: one-way
-push, shared API key from env, upsert on the receiving end, failures swallowed. Expose the
-external line-item endpoint in the budget app's own Phase 1 so it's a design input rather than
-a retrofit. Keep the budget app owning budgets and spend, and Tada owning items and checkoffs —
-a nullable `budget_category_id` on a list is the entire link. Avoid two-way sync.
-
-**Already built — do not rebuild.** Task assignment and the exclusion of delegated tasks from
-her surfaces work today (`for_user_id=current_user.id` is passed in `/focus` and
-`/sessions/build`; tasks assigned to someone else are already filtered out). Shared multi-user
-access also already works — no data is scoped per user and `require_owner` only checks role,
-so a second owner account sees everything she sees.
-
 ---
 
 ## Working notes
@@ -978,3 +946,38 @@ engine tests still pass unchanged.
 **Phase 9 is done when:** she can tap Undo right after a mis-tap or from Done Today, the task
 returns to exactly the priority it had before, her streak doesn't budge, and nothing in the
 copy suggests she did anything wrong.
+
+
+## Deferred and cut
+
+**Notification badge icon — deferred (on the backburner, not forgotten).** The status-bar icon
+renders as a blank square. Diagnosed: `frontend/public/sw.js` sets `badge: "/icons/icon-192.png"`,
+but Android masks the badge and derives a silhouette from the alpha channel alone. The 192 icon
+is `"purpose": "any maskable"`, so it's fully opaque and the silhouette is a square. The fix is
+a dedicated 96×96 monochrome white-on-transparent PNG, then pointing `badge` at it. Also worth
+checking whether `/icons/icon-192.png` is still a Phase 0 placeholder. Explicitly excluded from
+Phase 4.5.
+
+**Third effort tier — cut.** She felt there was a middle ground between Quick Wins and Deep
+Clean but couldn't name an example, and said she can go without. It's also the most expensive
+item on the list: `effort` is a two-value enum threaded through the model, roughly 100 seeded
+starter tasks, guest mode's `effort == "quick"` filter, the task form, and the home chips.
+Worth noting *why* it feels wrong to her — effort is about energy but the data conflates it
+with duration (a 20-minute "fold laundry" is tagged quick; a 10-minute washer run is tagged
+deep). Revisit only with three concrete examples in hand, and migrate by rule rather than
+re-tagging by hand.
+
+**Budget app integration — deferred by design.** Phase 6 adds per-item prices, which is the
+foundation. When the budget app exists, model the link on the MealGenie integration: one-way
+push, shared API key from env, upsert on the receiving end, failures swallowed. Expose the
+external line-item endpoint in the budget app's own Phase 1 so it's a design input rather than
+a retrofit. Keep the budget app owning budgets and spend, and Tada owning items and checkoffs —
+a nullable `budget_category_id` on a list is the entire link. Avoid two-way sync.
+
+**Already built — do not rebuild.** Task assignment and the exclusion of delegated tasks from
+her surfaces work today (`for_user_id=current_user.id` is passed in `/focus` and
+`/sessions/build`; tasks assigned to someone else are already filtered out). Shared multi-user
+access also already works — no data is scoped per user and `require_owner` only checks role,
+so a second owner account sees everything she sees.
+
+**Timer — deferred.** The in-app timer for tasks is postponed. It may be revisited once the core task management and undo functionality are stable, as it is not critical to the immediate workflow and adds complexity to the UI. **Currently implemented as a notification only.**

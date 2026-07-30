@@ -6,12 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
 import UndoToast from "@/components/UndoToast";
 import {
+  afterPendingWrites,
   buildSession,
   cancelSessionTimer,
   completeSession,
   completeTask,
   extendSessionTimer,
   startSessionTimer,
+  trackWrite,
   undoCompletion,
   type Badge,
   type CompleteResponse,
@@ -140,11 +142,12 @@ function SessionScreen() {
 
   // The Undo toast (Phase 9): always for the most recent Done. Keyed so
   // each completion restarts the toast's linger; the ref carries the
-  // in-flight completion post whose id an undo would need.
+  // in-flight completion post whose id an undo would need, plus the
+  // task itself so an undo can put it straight back in the queue.
   const [undoKey, setUndoKey] = useState<number | null>(null);
   const lastCompletionRef = useRef<{
     post: Promise<CompleteResponse | null>;
-    minutes: number;
+    task: Task;
   } | null>(null);
 
   const build = useCallback(() => {
@@ -154,17 +157,22 @@ function SessionScreen() {
     setDoneMinutes(0);
     setNewBadges([]);
     startedAtRef.current = new Date().toISOString();
-    buildSession({
-      minutes: minutesParam ? Number(minutesParam) : undefined,
-      room_id: roomParam ? Number(roomParam) : undefined,
-      effort:
-        effortParam === "quick" || effortParam === "deep"
-          ? (effortParam as Effort)
-          : undefined,
-      zone_id: zoneParam ? Number(zoneParam) : undefined,
-      campaign_id: campaignParam ? Number(campaignParam) : undefined,
-      guest: isGuest || undefined,
-    })
+    // Order behind any in-flight Done/Undo posts, so "Keep going" never
+    // rebuilds from a ranking the server hasn't caught up to yet.
+    afterPendingWrites()
+      .then(() =>
+        buildSession({
+          minutes: minutesParam ? Number(minutesParam) : undefined,
+          room_id: roomParam ? Number(roomParam) : undefined,
+          effort:
+            effortParam === "quick" || effortParam === "deep"
+              ? (effortParam as Effort)
+              : undefined,
+          zone_id: zoneParam ? Number(zoneParam) : undefined,
+          campaign_id: campaignParam ? Number(campaignParam) : undefined,
+          guest: isGuest || undefined,
+        }),
+      )
       .then((session) => {
         const skipped = skippedIdsRef.current;
         const fresh = session.tasks.filter((task) => !skipped.has(task.id));
@@ -217,13 +225,16 @@ function SessionScreen() {
 
   function handleDone(task: Task) {
     // Log it, but never block her flow on the network — the card has
-    // already celebrated.
-    const post = completeTask(task.id, copy.source).catch(() => null);
+    // already celebrated. Tracked, so any surface that reads task state
+    // next (home, a rebuild) orders behind it.
+    const post = trackWrite(completeTask(task.id, copy.source)).catch(
+      () => null,
+    );
     pendingCompletionsRef.current.push(post);
     // Offer Undo for a beat (Phase 9) — except in guest mode, which
     // stays deliberately minimal for a houseguest.
     if (mode !== "guest") {
-      lastCompletionRef.current = { post, minutes: task.estimated_minutes };
+      lastCompletionRef.current = { post, task };
       setUndoKey((k) => (k ?? 0) + 1);
     }
     skippedIdsRef.current.delete(task.id);
@@ -237,14 +248,29 @@ function SessionScreen() {
     lastCompletionRef.current = null;
     if (!last) return;
     // Fire-and-forget, like the completion itself — undo never holds
-    // her up either. If the completion post failed, there is nothing
-    // on the server to reverse.
-    last.post.then((done) => {
-      if (done) undoCompletion(done.completion_id).catch(() => {});
-    });
+    // her up either. Tracked as ONE chain (completion post, then the
+    // undo), so a home-screen fetch right after can't slip in between
+    // and render the pre-undo world. If the completion post failed,
+    // there is nothing on the server to reverse.
+    trackWrite(
+      last.post.then((done) =>
+        done ? undoCompletion(done.completion_id).catch(() => {}) : undefined,
+      ),
+    );
     // Keep the session's own numbers honest.
     setDoneCount((n) => Math.max(0, n - 1));
-    setDoneMinutes((m) => Math.max(0, m - last.minutes));
+    setDoneMinutes((m) => Math.max(0, m - last.task.estimated_minutes));
+    // She didn't actually do it — put it back at the end of the queue
+    // so it returns live, without interrupting the current card. On the
+    // complete screen the session stays finished; the task resurfaces
+    // on the home screen instead.
+    if (phase === "active") {
+      setTasks((current) =>
+        current.some((t) => t.id === last.task.id)
+          ? current
+          : [...current, last.task],
+      );
+    }
   }
 
   function handleSkip(task: Task) {

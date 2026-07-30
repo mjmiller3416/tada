@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
 import {
+  afterPendingWrites,
   getDoneToday,
+  trackWrite,
   undoCompletion,
   type DoneTodayEntry,
   type DoneTodayResponse,
@@ -43,7 +45,10 @@ function DoneTodayScreen() {
   const [newBadgeIds, setNewBadgeIds] = useState<Set<number>>(new Set());
 
   const load = useCallback(() => {
-    getDoneToday()
+    // Order behind in-flight Done/Undo posts — arriving here straight
+    // from a session must show every ta-da that's still on the wire.
+    afterPendingWrites()
+      .then(() => getDoneToday())
       .then((response) => {
         const seen = readSeenBadges();
         setNewBadgeIds(
@@ -91,7 +96,8 @@ function DoneTodayScreen() {
         },
     );
     // Quietly resync if the server disagrees (e.g. the day rolled over).
-    undoCompletion(entry.id).catch(() => load());
+    // Tracked, so the home screen she returns to orders behind it.
+    trackWrite(undoCompletion(entry.id)).catch(() => load());
   }
 
   function timeOf(iso: string): string {

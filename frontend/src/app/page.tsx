@@ -9,12 +9,14 @@ import KidHome from "@/components/KidHome";
 import SnoozeMenu from "@/components/SnoozeMenu";
 import UndoToast from "@/components/UndoToast";
 import {
+  afterPendingWrites,
   completeTask,
   getCampaigns,
   getFocus,
   getSettings,
   getZones,
   snoozeTask,
+  trackWrite,
   undoCompletion,
   updateSettings,
   type Campaign,
@@ -80,13 +82,27 @@ function HomeScreen({ firstName }: { firstName: string }) {
   const undoCompletionIdRef = useRef<number | null>(null);
 
   const loadFocus = useCallback((filter: EffortFilter) => {
-    getFocus(filter === "all" ? undefined : filter)
+    // Order behind any in-flight Done/Undo posts (e.g. an undo tapped
+    // seconds ago in a session) so this fetch can't race a write and
+    // show a list the server has already moved past.
+    afterPendingWrites()
+      .then(() => getFocus(filter === "all" ? undefined : filter))
       .then(setFocus)
       .catch(() => setFocus({ tasks: [], total_active_tasks: 0 }));
   }, []);
 
   useEffect(() => {
     loadFocus(effort);
+  }, [effort, loadFocus]);
+
+  // A PWA rarely restarts — refresh the list whenever the app returns
+  // to the foreground so it never shows a stale morning.
+  useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState === "visible") loadFocus(effort);
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [effort, loadFocus]);
 
   useEffect(() => {
@@ -150,7 +166,7 @@ function HomeScreen({ firstName }: { firstName: string }) {
     setCelebratingId(task.id);
     timerRef.current = setTimeout(async () => {
       try {
-        const done = await completeTask(task.id, "direct");
+        const done = await trackWrite(completeTask(task.id, "direct"));
         // The burst has landed — now offer a quiet Undo for a beat
         // (Phase 9), in case that Done wasn't meant.
         undoCompletionIdRef.current = done.completion_id;
@@ -168,7 +184,7 @@ function HomeScreen({ firstName }: { firstName: string }) {
     const completionId = undoCompletionIdRef.current;
     undoCompletionIdRef.current = null;
     if (completionId === null) return;
-    undoCompletion(completionId)
+    trackWrite(undoCompletion(completionId))
       .catch(() => {})
       .finally(() => loadFocus(effort));
   }

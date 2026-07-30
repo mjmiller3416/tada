@@ -39,6 +39,41 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/* ---- Write ordering ----
+ * Completions and undos post fire-and-forget so Done and Undo never
+ * hold up her flow (SPEC §5 — the celebration already happened). The
+ * cost is a race: a surface that re-reads task state right after (the
+ * home focus list, a session rebuild, Done Today) can fetch before the
+ * write lands and then show stale truth until its next full reload.
+ * So writers register their in-flight posts here and readers await
+ * afterPendingWrites() before fetching — order restored without ever
+ * blocking a tap. */
+
+let pendingWrites: Promise<unknown>[] = [];
+
+/** Register a fire-and-forget write so reads can order behind it.
+ * Returns the original promise untouched. */
+export function trackWrite<T>(promise: Promise<T>): Promise<T> {
+  const entry = promise.then(
+    () => undefined,
+    () => undefined, // a failed write is settled too — never wedge reads
+  );
+  pendingWrites.push(entry);
+  entry.then(() => {
+    pendingWrites = pendingWrites.filter((p) => p !== entry);
+  });
+  return promise;
+}
+
+/** Resolves once every tracked write has settled — looping, so a write
+ * that chains mid-wait (an undo behind its completion post) is caught
+ * by the next pass rather than slipping through. */
+export async function afterPendingWrites(): Promise<void> {
+  while (pendingWrites.length > 0) {
+    await Promise.allSettled([...pendingWrites]);
+  }
+}
+
 /* ---- Auth ---- */
 
 export type CurrentUser = {
