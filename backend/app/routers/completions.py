@@ -44,4 +44,6 @@ def undo_completion(
 
     db.commit()
     db.refresh(task)
-    return task_to_read(task)
+    return task_to_read(
+        task, ctx=scheduling.presentation_context(db, current_user.id)
+    )

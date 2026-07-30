@@ -91,7 +91,13 @@ function TasksScreen() {
 
   const visible = useMemo(() => {
     if (!tasks) return [];
-    let list = tasks.filter((t) => t.category === category);
+    // The cleaning/maintenance split reads task_type now (Phase 10):
+    // "maintenance" is the maintenance lane, "cleaning" everything else.
+    let list = tasks.filter((t) =>
+      category === "maintenance"
+        ? t.task_type === "maintenance"
+        : t.task_type !== "maintenance",
+    );
     if (roomFilter !== "all") list = list.filter((t) => t.room_id === roomFilter);
     if (effortFilter !== "all") list = list.filter((t) => t.effort === effortFilter);
     if (assigneeFilter !== "all")
@@ -238,6 +244,7 @@ function TasksScreen() {
               setEditing(task);
               setShowForm(true);
             }}
+            onTypeChanged={load}
           />
         ))}
         {tasks !== null && visible.length === 0 && (
@@ -257,7 +264,7 @@ function TasksScreen() {
         <TaskForm
           task={editing}
           rooms={rooms}
-          defaultCategory={category}
+          defaultTaskType={category === "maintenance" ? "maintenance" : "routine"}
           onClose={closeForm}
         />
       )}

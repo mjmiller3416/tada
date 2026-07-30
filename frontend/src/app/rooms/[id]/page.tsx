@@ -142,6 +142,7 @@ function RoomDetailScreen() {
               setEditing(task);
               setShowForm(true);
             }}
+            onTypeChanged={load}
           />
         ))}
         {tasks !== null && tasks.length === 0 && (

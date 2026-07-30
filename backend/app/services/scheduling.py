@@ -10,17 +10,33 @@ A task with no fixed due date just gets "dirtier" as the ratio climbs;
 completing it resets last_done_at and the curve restarts. Tune the
 constants below — they are deliberately collected at the top because this
 module will be read and adjusted often.
+
+Phase 10 (SPEC §4 scheduling lanes): decay is the scheduler for
+*recurring* work, no longer the only one. `task_type` says which clock
+governs a task, and each lane gets its own selector —
+recurring_candidates / zone_candidates / project_candidates — instead of
+more switches inside one candidate query.
+
+Phase 11 composes those selectors into the surfaces: compose_focus (the
+home screen's 1–3 cards), compose_session (timed and room sessions with
+at most one current-zone mission), and zone_mission_session (mission-only
+zone sessions). All of it gates on settings_service.lanes_active — with
+the flag or the zones overlay off, candidate_tasks() still serves every
+surface exactly as it always has. That is the permanent rollback
+boundary.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, tzinfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.completion_log import CompletionLog
 from app.models.room import Room
 from app.models.task import Task
 from app.models.user import User
+from app.models.zone import Zone
 
 # ---------------------------------------------------------------------------
 # Tunables
@@ -59,6 +75,11 @@ SNOOZE_OFFSETS: dict[str, timedelta] = {
     "tomorrow": timedelta(hours=24),
     "few_days": timedelta(days=3),
 }
+
+#: The task types whose clock is decay (SPEC §4 lanes, Phase 10). Zone
+#: missions and projects are the two types scheduled by something else —
+#: the zone calendar and her explicit choice, respectively.
+RECURRING_TYPES = ("routine", "weekly_blessing", "maintenance")
 
 
 def _utcnow() -> datetime:
@@ -191,12 +212,17 @@ def candidate_tasks(
     `zone_id` scopes to the rooms mapped into a FlyLady zone, and
     `guest_only` is Chaos Cleaning — guest-facing tasks only, deep work
     skipped, because with company coming the win is fast visible impact
-    (SPEC §6)."""
+    (SPEC §6).
+
+    Maintenance stays in its own section (SPEC §6): the filter reads
+    task_type (Phase 10 — category is deprecated), and admitting every
+    non-maintenance type keeps this surface byte-identical to the old
+    single-universe behavior until Phase 11's composer takes over."""
     now = now or _utcnow()
     query = (
         select(Task)
         .options(joinedload(Task.room))
-        .where(Task.is_active.is_(True), Task.category == "cleaning")
+        .where(Task.is_active.is_(True), Task.task_type != "maintenance")
     )
     if for_user_id is not None:
         query = query.where(
@@ -207,7 +233,14 @@ def candidate_tasks(
     if zone_id is not None:
         query = query.join(Task.room).where(Room.zone_id == zone_id)
     if guest_only:
-        query = query.where(Task.guest_facing.is_(True), Task.effort == "quick")
+        # Routines only (Phase 11, SPEC §6): "wipe cabinet fronts" may be
+        # flagged guest-facing, but it's a zone mission, not a
+        # company-in-twenty-minutes task — and a project never is.
+        query = query.where(
+            Task.guest_facing.is_(True),
+            Task.effort == "quick",
+            Task.task_type.notin_(("zone", "project")),
+        )
     if effort in ("quick", "deep"):
         query = query.where(Task.effort == effort)
 
@@ -218,6 +251,158 @@ def candidate_tasks(
         if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
     ]
     return rank_tasks(eligible, now, tz)
+
+
+# ---------------------------------------------------------------------------
+# Scheduling lanes (SPEC §4, Phase 10) — one experience, multiple clocks
+#
+# Decay schedules recurring upkeep; the zone calendar schedules detailed
+# and decluttering missions; manual projects never create debt. The lanes
+# share one calm interface and one completion path — they do NOT share one
+# eligibility rule, which is why each gets its own selector rather than
+# more switches inside candidate_tasks(). Built and tested in Phase 10;
+# wired to surfaces by Phase 11's composer behind zone_lane_enabled.
+# ---------------------------------------------------------------------------
+
+def _doing_eligible(tasks: list[Task], now: datetime) -> list[Task]:
+    """The doing-surface gate every automatic lane shares: un-snoozed and
+    non-fresh (ratio >= BAND_AGING) — the app guides toward what actually
+    needs doing, and celebrates when nothing does."""
+    return [
+        t
+        for t in tasks
+        if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
+    ]
+
+
+def recurring_candidates(
+    db: Session,
+    *,
+    for_user_id: int | None = None,
+    room_id: int | None = None,
+    zone_id: int | None = None,
+    effort: str | None = None,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> list[Task]:
+    """The decay lane: tasks whose clock is decay — routine,
+    weekly_blessing, and maintenance — priority-ranked. A rename-and-
+    narrow of candidate_tasks(): the same assignment exclusion, snooze
+    and freshness gates, and room/effort filters; zone missions and
+    projects run on different clocks and are never admitted here.
+    `zone_id` scopes to the rooms mapped into a zone — the "recurring
+    work from that zone's rooms" half of Phase 11's repurposed
+    home-screen zone selector."""
+    now = now or _utcnow()
+    query = (
+        select(Task)
+        .options(joinedload(Task.room))
+        .where(Task.is_active.is_(True), Task.task_type.in_(RECURRING_TYPES))
+    )
+    if for_user_id is not None:
+        query = query.where(
+            (Task.assignee_id.is_(None)) | (Task.assignee_id == for_user_id)
+        )
+    if room_id is not None:
+        query = query.where(Task.room_id == room_id)
+    if zone_id is not None:
+        query = query.join(Task.room).where(Room.zone_id == zone_id)
+    if effort in ("quick", "deep"):
+        query = query.where(Task.effort == effort)
+    return rank_tasks(_doing_eligible(list(db.scalars(query).all()), now), now, tz)
+
+
+def zone_candidates(
+    db: Session,
+    *,
+    for_user_id: int,
+    zone_id: int | None = None,
+    effort: str | None = None,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> list[Task]:
+    """The zone lane: task_type='zone' missions whose room maps into the
+    zone, ranked by the same decay priority WITHIN the pool.
+
+    With zone_id=None — the automatic "what should I do" path — the
+    BACKEND derives the current zone from today's date in her local
+    timezone (the client is never trusted to say which zone is "now"),
+    and returns nothing when the zones overlay is off or no zone matches
+    this week. Passing an explicit zone_id is the planning/manual path:
+    it retrieves that zone's missions even out of window, and skips the
+    overlay gate — asking for a specific zone IS the opt-in.
+
+    The no-debt rule (SPEC §4) rides on this being pure selection: out of
+    window a mission is simply not admitted — nothing is rescheduled,
+    logged, or mutated — and when its zone comes round again it is
+    eligible with history intact. Its internal ratio may pass 1.2
+    meanwhile; presenting that quietly (never as red debt) is Phase 11's
+    waiting state."""
+    # Local imports, same pattern as complete_task(): the zone calendar
+    # and settings live outside the engine, and the engine stays pure.
+    from app.services import settings_service
+    from app.services import zones as zone_service
+
+    now = now or _utcnow()
+    if zone_id is None:
+        if settings_service.get_setting(db, for_user_id, "zones_enabled") != "true":
+            return []
+        local_tz = tz or settings_service.user_timezone(db, for_user_id)
+        zone = zone_service.zone_for_moment(db, now, local_tz)
+        if zone is None:
+            return []
+        zone_id = zone.id
+    else:
+        zone = db.get(Zone, zone_id)
+
+    # Zone 3's rotating second room (Phase 11, SPEC §6): while the
+    # setting names a room, that room's zone missions join Zone 3's pool.
+    # A one-line union, not a membership table.
+    room_filter = Room.zone_id == zone_id
+    if zone is not None and zone.week_of_month == 3:
+        extra_room_id = settings_service.zone_3_extra_room_id(db, for_user_id)
+        if extra_room_id is not None:
+            room_filter = or_(Room.zone_id == zone_id, Room.id == extra_room_id)
+
+    query = (
+        select(Task)
+        .options(joinedload(Task.room))
+        .join(Task.room)
+        .where(
+            Task.is_active.is_(True),
+            Task.task_type == "zone",
+            room_filter,
+            (Task.assignee_id.is_(None)) | (Task.assignee_id == for_user_id),
+        )
+    )
+    if effort in ("quick", "deep"):
+        query = query.where(Task.effort == effort)
+    return rank_tasks(_doing_eligible(list(db.scalars(query).all()), now), now, tz)
+
+
+def project_candidates(
+    db: Session,
+    *,
+    for_user_id: int | None = None,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> list[Task]:
+    """The manual lane: task_type='project', priority-ranked. Calling
+    this IS the explicit request — projects never enter automatic
+    selection (both other selectors exclude the type) and never create
+    debt. No freshness gate either: she asked to see her projects, and a
+    project doesn't "need doing" on any clock but hers."""
+    now = now or _utcnow()
+    query = (
+        select(Task)
+        .options(joinedload(Task.room))
+        .where(Task.is_active.is_(True), Task.task_type == "project")
+    )
+    if for_user_id is not None:
+        query = query.where(
+            (Task.assignee_id.is_(None)) | (Task.assignee_id == for_user_id)
+        )
+    return rank_tasks(list(db.scalars(query).all()), now, tz)
 
 
 def daily_focus(
@@ -235,6 +420,166 @@ def daily_focus(
     return candidate_tasks(
         db, for_user_id=for_user_id, effort=effort, now=now, tz=tz
     )[:limit]
+
+
+def _greedy_fill(candidates: list[Task], minutes: int) -> list[Task]:
+    """The SPEC §5 time-budget fill: walk the priority ranking and take
+    each task whose estimate still fits the remaining minutes — highest-
+    priority work first, sized to the time she actually has, capped at
+    MAX_SESSION_TASKS."""
+    picked: list[Task] = []
+    remaining = minutes
+    for task in candidates:
+        if len(picked) >= MAX_SESSION_TASKS:
+            break
+        if task.estimated_minutes <= remaining:
+            picked.append(task)
+            remaining -= task.estimated_minutes
+    return picked
+
+
+# ---------------------------------------------------------------------------
+# The Phase 11 composer — one calm interface over multiple clocks
+#
+# Every function here is called ONLY when settings_service.lanes_active
+# says so (the zone_lane_enabled flag AND the zones overlay both on).
+# Otherwise the routers stay on candidate_tasks()/daily_focus()/
+# build_session() and the app is exactly its pre-lane self.
+# ---------------------------------------------------------------------------
+
+def compose_focus(
+    db: Session,
+    *,
+    limit: int,
+    for_user_id: int,
+    effort: str | None = None,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> list[Task]:
+    """The composed home screen (SPEC §6): the same calm 1–3 cards, newly
+    sourced across lanes. Card 1 is the top recurring candidate, card 2
+    the single best mission from the CURRENT zone (backend-derived — the
+    client never says which zone is "now"), card 3 the next recurring
+    candidate. No eligible mission just means another recurring card —
+    never an empty slot — and `limit` (daily_focus_count) still caps the
+    total. The energy filter applies to BOTH pools: a five-minute task
+    can still mean painful scrubbing, and low-energy days deserve
+    low-energy missions too."""
+    now = now or _utcnow()
+    cards = list(
+        recurring_candidates(db, for_user_id=for_user_id, effort=effort, now=now, tz=tz)
+    )
+    missions = zone_candidates(
+        db, for_user_id=for_user_id, effort=effort, now=now, tz=tz
+    )
+    if missions:
+        cards.insert(min(1, len(cards)), missions[0])
+    return cards[:limit]
+
+
+def compose_session(
+    db: Session,
+    *,
+    for_user_id: int,
+    minutes: int | None = None,
+    room_id: int | None = None,
+    effort: str | None = None,
+    zone_id: int | None = None,
+    exclude_ids: set[int] | None = None,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> list[Task]:
+    """A composed focus session (SPEC §5/§6, flag on): the greedy fill
+    draws from the recurring lane, then AT MOST ONE current-zone mission
+    joins when it fits the remaining budget — slotted into the queue by
+    priority, never forced to position 1.
+
+    `zone_id` is the repurposed Phase 4.6 home-screen zone scope:
+    recurring work from that zone's rooms plus that zone's missions. The
+    mission slot keeps the active-window gate, so scoping to an inactive
+    zone simply means its rooms' recurring work — its missions wait for
+    their week (working them early is the planning path, via
+    zone_mission_session with an explicit zone_id). `room_id` scopes a
+    room session the same way. `exclude_ids` keeps a timer-extend top-up
+    from re-offering what's already queued."""
+    from app.services import settings_service
+    from app.services import zones as zone_service
+
+    now = now or _utcnow()
+    recurring = recurring_candidates(
+        db,
+        for_user_id=for_user_id,
+        room_id=room_id,
+        zone_id=zone_id,
+        effort=effort,
+        now=now,
+        tz=tz,
+    )
+    missions = zone_candidates(
+        db, for_user_id=for_user_id, effort=effort, now=now, tz=tz
+    )
+    if zone_id is not None and missions:
+        local_tz = tz or settings_service.user_timezone(db, for_user_id)
+        active = zone_service.zone_for_moment(db, now, local_tz)
+        if active is None or active.id != zone_id:
+            missions = []
+    if room_id is not None:
+        missions = [m for m in missions if m.room_id == room_id]
+    if exclude_ids:
+        recurring = [t for t in recurring if t.id not in exclude_ids]
+        missions = [m for m in missions if m.id not in exclude_ids]
+
+    if minutes is None:
+        picked = recurring[:MAX_SESSION_TASKS]
+    else:
+        picked = _greedy_fill(recurring, minutes)
+
+    if missions and len(picked) < MAX_SESSION_TASKS:
+        if minutes is None:
+            mission = missions[0]
+        else:
+            remaining = minutes - sum(t.estimated_minutes for t in picked)
+            mission = next(
+                (m for m in missions if m.estimated_minutes <= remaining), None
+            )
+        if mission is not None:
+            score = priority_score(mission, now, tz)
+            slot = next(
+                (
+                    i
+                    for i, task in enumerate(picked)
+                    if priority_score(task, now, tz) < score
+                ),
+                len(picked),
+            )
+            picked.insert(slot, mission)
+    return picked
+
+
+def zone_mission_session(
+    db: Session,
+    *,
+    for_user_id: int,
+    minutes: int | None = None,
+    zone_id: int | None = None,
+    effort: str | None = None,
+    exclude_ids: set[int] | None = None,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> list[Task]:
+    """A zone session (SPEC §6, flag on): ONLY task_type='zone' missions,
+    ranked by decay within the pool — no more dishes in a Kitchen Zone
+    session. zone_id=None follows the automatic current-zone gate; an
+    explicit zone_id is the planning path and works out of window. An
+    empty pool is the surface's warm "this zone is feeling fresh"."""
+    missions = zone_candidates(
+        db, for_user_id=for_user_id, zone_id=zone_id, effort=effort, now=now, tz=tz
+    )
+    if exclude_ids:
+        missions = [m for m in missions if m.id not in exclude_ids]
+    if minutes is None:
+        return missions[:MAX_SESSION_TASKS]
+    return _greedy_fill(missions, minutes)
 
 
 def build_session(
@@ -278,16 +623,7 @@ def build_session(
 
     if minutes is None:
         return candidates[:MAX_SESSION_TASKS]
-
-    picked: list[Task] = []
-    remaining = minutes
-    for task in candidates:
-        if len(picked) >= MAX_SESSION_TASKS:
-            break
-        if task.estimated_minutes <= remaining:
-            picked.append(task)
-            remaining -= task.estimated_minutes
-    return picked
+    return _greedy_fill(candidates, minutes)
 
 
 def chores_for_user(
@@ -318,16 +654,114 @@ def chores_for_user(
     return mine, up_for_grabs
 
 
-def room_aggregate_ratio(tasks: list[Task], now: datetime | None = None) -> float | None:
+def room_aggregate_ratio(
+    tasks: list[Task],
+    now: datetime | None = None,
+    ctx: "ZoneWindowContext | None" = None,
+) -> float | None:
     """Room-level dirtiness (SPEC §4): a blend of the room's worst task and
     its average — "roughly the max/average" — so one overdue task colors
     the room without a single red drowning nine greens. None if the room
-    has no active tasks."""
+    has no active tasks.
+
+    With a Phase 11 presentation context, out-of-window zone missions are
+    excluded — a room never reads dirty because of work that isn't
+    currently askable (SPEC §4 no-debt)."""
     now = now or _utcnow()
-    ratios = [dirtiness_ratio(t, now) for t in tasks if t.is_active]
+    ratios = [
+        dirtiness_ratio(t, now)
+        for t in tasks
+        if t.is_active and in_zone_window(t, ctx)
+    ]
     if not ratios:
         return None
     return 0.5 * max(ratios) + 0.5 * (sum(ratios) / len(ratios))
+
+
+# ---------------------------------------------------------------------------
+# The waiting state (Phase 11, SPEC §4) — presentation, never debt
+#
+# A zone mission's internal ratio keeps climbing while its zone is
+# inactive; that state must never be shown as red/overdue. These helpers
+# give the read layer just enough context to present an out-of-window
+# mission as quietly waiting ("waits for Kitchen week") instead. Only the
+# PRESENTATION changes — nothing here feeds selection or mutates state.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ZoneWindowContext:
+    """What the read layer needs to present zone missions honestly: which
+    zone window is open right now, Zone 3's extra room, and the names to
+    say what a closed-window mission is waiting for."""
+
+    active_zone_id: int | None
+    week3_zone_id: int | None
+    extra_room_id: int | None
+    zone_names: dict[int, str]
+
+
+def presentation_context(
+    db: Session,
+    for_user_id: int,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> ZoneWindowContext | None:
+    """None while the lanes are off — every band presents exactly as it
+    always has (the permanent rollback boundary). With the lanes active,
+    the context task_to_read and the room aggregates use to show
+    out-of-window zone missions as quietly waiting."""
+    from app.services import settings_service
+    from app.services import zones as zone_service
+
+    if not settings_service.lanes_active(db, for_user_id):
+        return None
+    now = now or _utcnow()
+    local_tz = tz or settings_service.user_timezone(db, for_user_id)
+    active = zone_service.zone_for_moment(db, now, local_tz)
+    zones = list(db.scalars(select(Zone)).all())
+    week3 = next((z for z in zones if z.week_of_month == 3), None)
+    return ZoneWindowContext(
+        active_zone_id=active.id if active else None,
+        week3_zone_id=week3.id if week3 else None,
+        extra_room_id=settings_service.zone_3_extra_room_id(db, for_user_id),
+        zone_names={z.id: z.name for z in zones},
+    )
+
+
+def in_zone_window(task: Task, ctx: ZoneWindowContext | None) -> bool:
+    """Whether this task's window is open right now. Non-zone tasks are
+    always "in window" (the waiting state exists only for the zone lane),
+    and without a context — lanes off — everything is. A mission with no
+    room, or an unzoned room, has no window and waits until it's placed."""
+    if ctx is None or task.task_type != "zone":
+        return True
+    room = task.room
+    if room is None:
+        return False
+    if room.zone_id is not None and room.zone_id == ctx.active_zone_id:
+        return True
+    # Zone 3's extra room: in window while Zone 3's week is the open one.
+    return (
+        ctx.extra_room_id is not None
+        and room.id == ctx.extra_room_id
+        and ctx.week3_zone_id is not None
+        and ctx.active_zone_id == ctx.week3_zone_id
+    )
+
+
+def window_zone_name(task: Task, ctx: ZoneWindowContext | None) -> str | None:
+    """The zone whose week governs this mission — the name behind both
+    the home card's "This week's Kitchen mission" label and the waiting
+    copy ("waits for Kitchen week"). None for non-zone tasks, when the
+    lanes are off, or when the mission has no zone to wait for."""
+    if ctx is None or task.task_type != "zone" or task.room is None:
+        return None
+    room = task.room
+    if room.zone_id is not None:
+        return ctx.zone_names.get(room.zone_id)
+    if ctx.extra_room_id == room.id and ctx.week3_zone_id is not None:
+        return ctx.zone_names.get(ctx.week3_zone_id)
+    return None
 
 
 # ---------------------------------------------------------------------------

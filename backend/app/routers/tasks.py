@@ -34,6 +34,13 @@ def _get_task(db: Session, task_id: int) -> Task:
     return task
 
 
+def _ctx(db: Session, user: User) -> scheduling.ZoneWindowContext | None:
+    """The Phase 11 waiting-state context (None while the lanes are off),
+    so every task this router returns presents out-of-window zone
+    missions as quietly waiting rather than red debt."""
+    return scheduling.presentation_context(db, user.id)
+
+
 def _check_room(db: Session, room_id: int | None) -> None:
     if room_id is not None and db.get(Room, room_id) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Room not found")
@@ -63,7 +70,9 @@ def list_tasks(
     """The global/task planning view (SPEC §6): the flat list, dirtiest
     first. Fresh and snoozed tasks are included here — planning shows
     everything; only the *doing* surfaces filter them out. The category
-    param gives maintenance its own section without cluttering cleaning."""
+    param gives maintenance its own section without cluttering cleaning —
+    since Phase 10 it maps onto task_type (category is deprecated):
+    "maintenance" is the maintenance lane, "cleaning" is everything else."""
     query = select(Task).options(joinedload(Task.room))
     if not include_inactive:
         query = query.where(Task.is_active.is_(True))
@@ -71,28 +80,35 @@ def list_tasks(
         query = query.where(Task.room_id == room_id)
     if effort in ("quick", "deep"):
         query = query.where(Task.effort == effort)
-    if category in ("cleaning", "maintenance"):
-        query = query.where(Task.category == category)
+    if category == "maintenance":
+        query = query.where(Task.task_type == "maintenance")
+    elif category == "cleaning":
+        query = query.where(Task.task_type != "maintenance")
 
     tasks = scheduling.rank_tasks(
         list(db.scalars(query).all()),
         tz=settings_service.user_timezone(db, current_user.id),
     )
-    return [task_to_read(task) for task in tasks]
+    ctx = _ctx(db, current_user)
+    return [task_to_read(task, ctx=ctx) for task in tasks]
 
 
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 def create_task(
     payload: TaskCreate,
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> TaskRead:
     _check_room(db, payload.room_id)
     _check_assignee(db, payload.assignee_id)
+    # The Phase 11 form sends the five-type task_type directly; the
+    # legacy category toggle still decides when it's absent. The
+    # deprecated category column just takes its unmeaning default.
     task = Task(
         name=payload.name,
         room_id=payload.room_id,
-        category=payload.category,
+        task_type=payload.task_type
+        or ("maintenance" if payload.category == "maintenance" else "routine"),
         cadence_days=payload.cadence_days,
         estimated_minutes=payload.estimated_minutes,
         effort=payload.effort,
@@ -107,14 +123,14 @@ def create_task(
     db.add(task)
     db.commit()
     db.refresh(task)
-    return task_to_read(task)
+    return task_to_read(task, ctx=_ctx(db, current_user))
 
 
 @router.patch("/{task_id}", response_model=TaskRead)
 def update_task(
     task_id: int,
     payload: TaskUpdate,
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> TaskRead:
     task = _get_task(db, task_id)
@@ -126,8 +142,19 @@ def update_task(
     elif payload.room_id is not None:
         _check_room(db, payload.room_id)
         task.room_id = payload.room_id
-    if payload.category is not None:
-        task.category = payload.category
+    if payload.task_type is not None:
+        # The Phase 11 five-type review editor — the direct write, taking
+        # precedence over the legacy category toggle below.
+        task.task_type = payload.task_type
+    elif payload.category is not None:
+        # The legacy two-way toggle (kept for API compatibility) moves
+        # tasks in and out of the maintenance lane only. "cleaning" on an
+        # already-non-maintenance task is a no-op on purpose: it must not
+        # stomp a richer type (weekly_blessing / zone / project).
+        if payload.category == "maintenance":
+            task.task_type = "maintenance"
+        elif task.task_type == "maintenance":
+            task.task_type = "routine"
     if payload.cadence_days is not None:
         task.cadence_days = payload.cadence_days
     if payload.estimated_minutes is not None:
@@ -163,7 +190,7 @@ def update_task(
 
     db.commit()
     db.refresh(task)
-    return task_to_read(task)
+    return task_to_read(task, ctx=_ctx(db, current_user))
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -226,7 +253,10 @@ def complete_task(
         notify_owners(db, "Ta-da! 🎉", f"{first_name} just checked off {task.name}{where}.")
 
     db.refresh(task)
-    return CompleteResponse(**task_to_read(task).model_dump(), completion_id=completion_id)
+    return CompleteResponse(
+        **task_to_read(task, ctx=_ctx(db, current_user)).model_dump(),
+        completion_id=completion_id,
+    )
 
 
 @router.post("/{task_id}/claim", response_model=TaskRead)
@@ -246,7 +276,7 @@ def claim_task(
         task.assignee_id = current_user.id
         db.commit()
     db.refresh(task)
-    return task_to_read(task)
+    return task_to_read(task, ctx=_ctx(db, current_user))
 
 
 @router.post("/{task_id}/snooze", response_model=TaskRead)
@@ -267,4 +297,4 @@ def snooze_task(
         reminder_service.create_snooze_reminder(db, current_user, task, until)
     db.commit()
     db.refresh(task)
-    return task_to_read(task)
+    return task_to_read(task, ctx=_ctx(db, current_user))

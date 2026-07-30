@@ -113,9 +113,25 @@ export function subscribeToPush(subscription: PushSubscriptionPayload) {
 
 /* ---- Tasks & decay (Phase 1) ---- */
 
-export type Band = "fresh" | "aging" | "due" | "overdue";
+/** The SPEC §4 color bands, plus "waiting" (Phase 11): a zone mission
+ * outside its zone's week shows no color anywhere — a quiet fact, not a
+ * nag — and shows its real band only during its active window. */
+export type Band = "fresh" | "aging" | "due" | "overdue" | "waiting";
 export type Effort = "quick" | "deep";
+/** The form's two-way toggle. It maps onto task_type on the backend —
+ * "maintenance" is the maintenance lane, "cleaning" is everything else.
+ * The five-type editor arrives with Phase 11's review UI. */
 export type Category = "cleaning" | "maintenance";
+/** Which clock schedules a task (SPEC §4 lanes, Phase 10): decay for
+ * routine / weekly_blessing / maintenance, the zone calendar for zone
+ * missions, and her explicit choice for projects. Read-only until the
+ * Phase 11 review UI. */
+export type TaskType =
+  | "routine"
+  | "weekly_blessing"
+  | "zone"
+  | "maintenance"
+  | "project";
 export type SnoozeOption = "later_today" | "tomorrow" | "few_days" | "wake";
 export type SupplyStatus = "in_stock" | "low" | "out";
 
@@ -130,7 +146,7 @@ export type Task = {
   name: string;
   room_id: number | null;
   room_name: string | null;
-  category: Category;
+  task_type: TaskType;
   cadence_days: number;
   estimated_minutes: number;
   effort: Effort;
@@ -150,12 +166,18 @@ export type Task = {
   notes: string | null;
   ratio: number;
   band: Band;
+  /** The zone whose week governs this mission (lanes on, zone tasks
+   * only): the home card's "This week's Kitchen mission" label and the
+   * "waits for Kitchen week" copy both read it. Null otherwise. */
+  zone_name: string | null;
 };
 
 export type TaskInput = {
   name: string;
   room_id: number | null;
   category?: Category;
+  /** The Phase 11 five-type picker; wins over `category` when both are sent. */
+  task_type?: TaskType;
   cadence_days: number;
   estimated_minutes: number;
   effort: Effort;
@@ -314,6 +336,9 @@ export function buildSession(input: {
   zone_id?: number;
   campaign_id?: number;
   guest?: boolean;
+  /** Phase 11: a mission-only zone session. Ignored while the lanes are
+   * off — the backend gracefully falls back to the legacy zone session. */
+  zone_missions?: boolean;
   /** Timer-extend top-up (Phase 5): skip what's already in the queue. */
   exclude_task_ids?: number[];
 }) {
@@ -407,6 +432,11 @@ export type Settings = {
   // Vacation mode (Phase 4.6): last paused day "YYYY-MM-DD", "" = home.
   // Pauses the nudges only — decay keeps running honestly throughout.
   vacation_until: string;
+  // Phase 11: the scheduling-lanes flag (flip on after the
+  // reclassification review) and Zone 3's rotating second room (a room
+  // id as a string, "" = none this rotation).
+  zone_lane_enabled: boolean;
+  zone_3_extra_room_id: string;
 };
 
 export function getSettings() {

@@ -25,6 +25,13 @@ class Task(Base):
     Python weekday() convention (Monday = 0 ... Sunday = 6), null = no
     preference. The task still decays normally — missing the day carries
     no penalty and creates no overdue state.
+
+    `task_type` (Phase 10/11, SPEC §4 lanes) says WHICH CLOCK schedules
+    the task: routine / weekly_blessing / maintenance decay as always;
+    zone tasks are eligible only during their zone's week (decay ranks
+    within the pool); project is manual-only and never enters automatic
+    selection. Phase 11's composer reads it behind zone_lane_enabled,
+    and the review UI (task form + planning rows) edits it.
     """
 
     __tablename__ = "tasks"
@@ -35,9 +42,15 @@ class Task(Base):
         ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True
     )
 
+    # DEPRECATED (Phase 10): superseded by task_type. Kept only for
+    # rollback safety — no code reads it anymore; drop the column in a
+    # later cleanup phase once task_type has survived a full rotation.
     category: Mapped[str] = mapped_column(
         String(20), nullable=False, default="cleaning"
-    )  # "cleaning" | "maintenance" (maintenance UI is Phase 2)
+    )
+    task_type: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="routine", server_default="routine"
+    )  # "routine" | "weekly_blessing" | "zone" | "maintenance" | "project"
     cadence_days: Mapped[int] = mapped_column(Integer, nullable=False)
     estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     effort: Mapped[str] = mapped_column(String(10), nullable=False, default="quick")  # "quick" | "deep"

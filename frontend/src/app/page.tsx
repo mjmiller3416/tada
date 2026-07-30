@@ -67,8 +67,14 @@ function HomeScreen({ firstName }: { firstName: string }) {
   const [minutes, setMinutes] = useState(15);
   const [currentZone, setCurrentZone] = useState<Zone | null>(null);
   // The optional zone scope for "I have X minutes" (Phase 4.6). Only
-  // offered when the zones overlay is on — never a dead control.
+  // offered when the zones overlay is on — never a dead control. With
+  // the Phase 11 lanes on, picking a zone means that zone's rooms plus
+  // its missions — the backend composes it; the request is the same.
   const [zones, setZones] = useState<Zone[]>([]);
+  // Phase 11: whether the scheduling lanes are live (flag + overlay).
+  // Drives two things only: the small mission label on a focus card, and
+  // the zone card launching a mission-only session.
+  const [lanesOn, setLanesOn] = useState(false);
   const [sessionZoneId, setSessionZoneId] = useState<number | null>(null);
   // Vacation mode (Phase 4.6): "" = home; otherwise the last paused day.
   const [vacationUntil, setVacationUntil] = useState("");
@@ -112,6 +118,7 @@ function HomeScreen({ firstName }: { firstName: string }) {
       .then((s) => {
         setMinutes(s.default_session_minutes);
         setVacationUntil(s.vacation_until);
+        setLanesOn(s.zones_enabled && s.zone_lane_enabled);
         if (s.zones_enabled) {
           getZones()
             .then((z) => {
@@ -324,6 +331,14 @@ function HomeScreen({ firstName }: { firstName: string }) {
             <section className={styles.focusList} aria-label="Today's focus">
               {focus.tasks.map((task) => (
                 <Card key={task.id} className={styles.taskCard}>
+                  {/* The composed mission card's one label (Phase 11) —
+                      the home screen's entire visual budget. No counts,
+                      no progress, no new elements. */}
+                  {lanesOn && task.task_type === "zone" && (
+                    <p className={styles.missionLabel}>
+                      🧭 This week’s {task.zone_name ?? "zone"} mission
+                    </p>
+                  )}
                   <div className={styles.taskTop}>
                     <DirtinessDot band={task.band} />
                     <span className={styles.taskName}>{task.name}</span>
@@ -401,8 +416,11 @@ function HomeScreen({ firstName }: { firstName: string }) {
                 fullWidth
                 disabled={currentZone.rooms.length === 0}
                 onClick={() =>
+                  // missions=1 (Phase 11): a mission-only zone session.
+                  // With the lanes off the backend ignores it and builds
+                  // the legacy zone session — same button either way.
                   router.push(
-                    `/session?zone=${currentZone.id}&minutes=${minutes}&label=${encodeURIComponent(currentZone.name)}`,
+                    `/session?zone=${currentZone.id}&minutes=${minutes}&missions=1&label=${encodeURIComponent(currentZone.name)}`,
                   )
                 }
               >

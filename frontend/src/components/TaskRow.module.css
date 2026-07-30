@@ -16,6 +16,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.row {
+  cursor: pointer;
+}
+
 .row:active {
   transform: scale(0.99);
 }
@@ -42,6 +46,35 @@
 .meta {
   font-size: var(--text-sm);
   color: var(--color-ink-soft);
+}
+
+/* The scheduling-lane chip (Phase 10) sits under the meta line so it can
+   never widen the row — the body already guards with min-width: 0. */
+.typeChip {
+  margin-top: 2px;
+  align-self: flex-start;
+}
+
+/* Its editable form (the Phase 11 review pass): same spot, a quiet
+   select instead of a chip. */
+.typeSelect {
+  margin-top: 2px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px var(--space-2);
+  border: 1px solid rgba(60, 42, 33, 0.15);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+/* The Phase 11 waiting state: muted ink, a fact — never a warning. */
+.waiting {
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  font-style: italic;
 }
 
 /* Row + optional check-off button (maintenance lists). */

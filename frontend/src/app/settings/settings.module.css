@@ -99,6 +99,39 @@
   max-width: none;
 }
 
+/* The quiet planning-path launcher for a zone's missions (Phase 11). */
+.zoneMissionLink {
+  flex: none;
+  border: none;
+  background: none;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-coral);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Zone 3's rotating extra room picker (Phase 11). */
+.extraRoomRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.extraRoomLabel {
+  flex: 0 0 5.5rem; /* lines up under the zone-week column */
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.extraRoomRow .input {
+  flex: 1;
+  max-width: none;
+  min-width: 0;
+}
+
 .roomZoneRow {
   display: flex;
   align-items: center;

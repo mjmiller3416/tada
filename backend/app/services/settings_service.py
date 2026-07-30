@@ -30,6 +30,19 @@ DEFAULTS: dict[str, str] = {
     # freeze. This records the last day of that elapsed window so the
     # streak logic can still excuse it.
     "streak_frozen_until": "",
+    # Phase 10: the scheduling-lanes rollback boundary. Phase 11's
+    # composer is the consumer, and the settings API exposes it so the
+    # flag can flip once Maryann's reclassification review is done.
+    # Forever after, rollback = flip this off and the legacy
+    # single-universe path returns — never drop the task_type column,
+    # never rewrite history.
+    "zone_lane_enabled": "false",
+    # Zone 3's rotating second room (Phase 11, SPEC §6): the main
+    # bathroom plus one extra area she may swap each rotation. A plain
+    # settings key — the room's id as a string, "" = none — NOT a
+    # membership table; zone_candidates unions the room's zone missions
+    # into Zone 3's pool while set.
+    "zone_3_extra_room_id": "",
 }
 
 
@@ -74,6 +87,32 @@ def set_settings(db: Session, user_id: int, updates: dict[str, str]) -> dict[str
     # below (and any nudge sync that follows) sees the new values.
     db.flush()
     return get_settings(db, user_id)
+
+
+def zone_lane_enabled(db: Session, user_id: int) -> bool:
+    """Whether the Phase 10/11 scheduling lanes drive selection for this
+    user. False (the shipped default) means the legacy single-universe
+    candidate path everywhere — the permanent rollback boundary. Read it
+    through here, never the raw key."""
+    return get_setting(db, user_id, "zone_lane_enabled") == "true"
+
+
+def lanes_active(db: Session, user_id: int) -> bool:
+    """Whether Phase 11's composer path drives selection right now: the
+    zone_lane_enabled flag AND the zones overlay both on. Either one off
+    means the legacy single-universe path everywhere — flipping the flag
+    back (or simply turning zones off) cleanly restores the core
+    experience, exactly like every overlay (SPEC §6)."""
+    values = get_settings(db, user_id)
+    return values["zone_lane_enabled"] == "true" and values["zones_enabled"] == "true"
+
+
+def zone_3_extra_room_id(db: Session, user_id: int) -> int | None:
+    """Zone 3's rotating second room (Phase 11, SPEC §6), or None when no
+    extra room is set this rotation. Read it through here, never the raw
+    key — the setting stores the id as a string."""
+    raw = get_setting(db, user_id, "zone_3_extra_room_id").strip()
+    return int(raw) if raw.isdigit() else None
 
 
 def vacation_until(db: Session, user_id: int) -> date | None:

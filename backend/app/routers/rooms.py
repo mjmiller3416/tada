@@ -14,13 +14,21 @@ from app.services import scheduling
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 
-def _room_to_read(room: Room, tasks: list[Task]) -> RoomRead:
+def _room_to_read(
+    room: Room,
+    tasks: list[Task],
+    ctx: scheduling.ZoneWindowContext | None = None,
+) -> RoomRead:
     active = [t for t in tasks if t.is_active]
-    ratio = scheduling.room_aggregate_ratio(active)
+    # With the Phase 11 lanes active, out-of-window zone missions are
+    # excluded from the aggregate and the due count — a room never reads
+    # dirty because of work that isn't currently askable (SPEC §4).
+    ratio = scheduling.room_aggregate_ratio(active, ctx=ctx)
     due = sum(
         1
         for t in active
-        if scheduling.dirtiness_ratio(t) >= scheduling.BAND_DUE
+        if scheduling.in_zone_window(t, ctx)
+        and scheduling.dirtiness_ratio(t) >= scheduling.BAND_DUE
         and not scheduling.is_snoozed(t)
     )
     return RoomRead(
@@ -37,14 +45,15 @@ def _room_to_read(room: Room, tasks: list[Task]) -> RoomRead:
 
 @router.get("", response_model=list[RoomRead])
 def list_rooms(
-    _: User = Depends(require_owner), db: Session = Depends(get_db)
+    current_user: User = Depends(require_owner), db: Session = Depends(get_db)
 ) -> list[RoomRead]:
     rooms = db.scalars(select(Room).order_by(Room.sort_order, Room.id)).all()
     tasks = db.scalars(select(Task).where(Task.room_id.is_not(None))).all()
     by_room: dict[int, list[Task]] = {}
     for task in tasks:
         by_room.setdefault(task.room_id, []).append(task)
-    return [_room_to_read(room, by_room.get(room.id, [])) for room in rooms]
+    ctx = scheduling.presentation_context(db, current_user.id)
+    return [_room_to_read(room, by_room.get(room.id, []), ctx) for room in rooms]
 
 
 @router.post("", response_model=RoomRead, status_code=status.HTTP_201_CREATED)
@@ -65,7 +74,7 @@ def create_room(
 def update_room(
     room_id: int,
     payload: RoomUpdate,
-    _: User = Depends(require_owner),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ) -> RoomRead:
     room = db.get(Room, room_id)
@@ -83,7 +92,8 @@ def update_room(
         room.zone_id = payload.zone_id
     db.commit()
     tasks = db.scalars(select(Task).where(Task.room_id == room.id)).all()
-    return _room_to_read(room, list(tasks))
+    ctx = scheduling.presentation_context(db, current_user.id)
+    return _room_to_read(room, list(tasks), ctx)
 
 
 @router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)

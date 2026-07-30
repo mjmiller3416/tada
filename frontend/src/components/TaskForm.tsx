@@ -7,14 +7,14 @@ import {
   getMembers,
   getSupplies,
   updateTask,
-  type Category,
   type Effort,
   type Member,
   type Room,
   type Supply,
   type Task,
+  type TaskType,
 } from "@/lib/api";
-import { CADENCE_PRESETS } from "@/lib/decay";
+import { CADENCE_PRESETS, TASK_TYPE_LABEL } from "@/lib/decay";
 import { fromLocalDateValue, toLocalDateValue } from "@/lib/dates";
 import { Button, Card, Chip } from "@/components/ui";
 import styles from "./TaskForm.module.css";
@@ -25,13 +25,25 @@ type TaskFormProps = {
   rooms: Room[];
   /** Preselected room for new tasks (e.g. adding from a room page). */
   defaultRoomId?: number | null;
-  /** Preselected category for new tasks (e.g. adding from the maintenance view). */
-  defaultCategory?: Category;
+  /** Preselected type for new tasks (e.g. adding from the maintenance view). */
+  defaultTaskType?: TaskType;
   /** Called with true when something changed and lists should refetch. */
   onClose: (changed: boolean) => void;
 };
 
 const CUSTOM = "custom";
+
+const TASK_TYPES = Object.keys(TASK_TYPE_LABEL) as TaskType[];
+
+/** What each lane means, in her words — a preference guide, never jargon
+ * (the Phase 11 reclassification review leans on these). */
+const TASK_TYPE_HINT: Record<TaskType, string> = {
+  routine: "Everyday upkeep — comes up whenever it needs doing.",
+  weekly_blessing: "The weekly once-over — vacuum, mop, sheets, towels.",
+  zone: "A small detail mission — only comes up during its room’s zone week.",
+  maintenance: "Long-haul home care — lives in its own list, out of the daily flow.",
+  project: "A someday project — only when you choose it. Never nagged.",
+};
 
 // Python weekday() convention, matching the backend: Monday = 0 … Sunday = 6.
 const DAY_CHIPS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -62,15 +74,17 @@ export default function TaskForm({
   task,
   rooms,
   defaultRoomId = null,
-  defaultCategory = "cleaning",
+  defaultTaskType = "routine",
   onClose,
 }: TaskFormProps) {
   const [name, setName] = useState(task?.name ?? "");
   const [roomId, setRoomId] = useState<number | null>(
     task ? task.room_id : defaultRoomId,
   );
-  const [category, setCategory] = useState<Category>(
-    task?.category ?? defaultCategory,
+  // The five-type editor (Phase 11): which clock schedules this task —
+  // SPEC §4's scheduling lanes, in plain language.
+  const [taskType, setTaskType] = useState<TaskType>(
+    task ? task.task_type : defaultTaskType,
   );
   const [cadenceChoice, setCadenceChoice] = useState<string>(
     presetFor(task?.cadence_days ?? 7),
@@ -142,7 +156,7 @@ export default function TaskForm({
         await updateTask(task.id, {
           name: name.trim(),
           ...(roomId != null ? { room_id: roomId } : { clear_room: true }),
-          category,
+          task_type: taskType,
           cadence_days: cadenceDays,
           estimated_minutes: estimatedMinutes,
           effort,
@@ -168,7 +182,7 @@ export default function TaskForm({
         await createTask({
           name: name.trim(),
           room_id: roomId,
-          category,
+          task_type: taskType,
           cadence_days: cadenceDays,
           estimated_minutes: estimatedMinutes,
           effort,
@@ -240,19 +254,17 @@ export default function TaskForm({
           <div className={styles.field}>
             <span className={styles.label}>What kind of task?</span>
             <div className={styles.chips}>
-              <Chip
-                tone={category === "cleaning" ? "coral" : "neutral"}
-                onClick={() => setCategory("cleaning")}
-              >
-                Cleaning
-              </Chip>
-              <Chip
-                tone={category === "maintenance" ? "coral" : "neutral"}
-                onClick={() => setCategory("maintenance")}
-              >
-                Maintenance
-              </Chip>
+              {TASK_TYPES.map((type) => (
+                <Chip
+                  key={type}
+                  tone={taskType === type ? "coral" : "neutral"}
+                  onClick={() => setTaskType(type)}
+                >
+                  {TASK_TYPE_LABEL[type]}
+                </Chip>
+              ))}
             </div>
+            <span className={styles.hint}>{TASK_TYPE_HINT[taskType]}</span>
           </div>
 
           <div className={styles.field}>

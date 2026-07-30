@@ -19,6 +19,9 @@ type FocusCardProps = {
   roomTone?: ChipTone;
   /** Inline supply flag ("heads up — you're low on…"); omit when stocked. */
   supplyNote?: string;
+  /** The zone label a composed mission card carries (Phase 11), e.g.
+   * "🧭 This week's Kitchen mission". Quiet context, never a counter. */
+  missionLabel?: string;
   /** 1-based position in the session, for the small progress signal. */
   current: number;
   total: number;
@@ -43,6 +46,7 @@ export default function FocusCard({
   roomName,
   roomTone = "periwinkle",
   supplyNote,
+  missionLabel,
   current,
   total,
   onDone,
@@ -73,6 +77,7 @@ export default function FocusCard({
         <ProgressDots total={total} current={current} />
       </div>
 
+      {missionLabel && <p className={styles.missionLabel}>{missionLabel}</p>}
       <h2 className={styles.taskName}>{taskName}</h2>
       <p className={styles.estimate}>about {estimatedMinutes} min</p>
       {supplyNote && <p className={styles.supplyNote}>🧴 {supplyNote}</p>}

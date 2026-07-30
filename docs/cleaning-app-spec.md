@@ -53,13 +53,24 @@ PushSubscription            # one user can have several (phone + chromebook)
 Room
   id, name, zone_id -> Zone (nullable), sort_order
 
-Zone                        # FlyLady overlay (see §6). Optional feature; rooms map into zones.
+Zone                        # FlyLady zone lane (see §6). Opt-in; rooms map into zones.
   id, name, week_of_month (1..5), sort_order
+                            # Since Phase 10/11 a zone is an ELIGIBILITY WINDOW for
+                            # task_type="zone" missions — not a room filter over all tasks.
+                            # Zone 3's rotating second room is a Setting
+                            # (zone_3_extra_room_id), not a membership table.
 
 Task                        # the central entity
   id, name
   room_id -> Room (nullable)
-  category: "cleaning" | "maintenance"
+  task_type: "routine" | "weekly_blessing" | "zone" | "maintenance" | "project"
+                             # Phase 10: WHICH CLOCK schedules this task (see §4 lanes).
+                             # routine/weekly_blessing/maintenance = decay; zone = the
+                             # zone calendar gates eligibility (decay ranks within);
+                             # project = manual only, never automatic.
+  category: "cleaning" | "maintenance"   # DEPRECATED since Phase 10 — superseded by
+                             # task_type; kept only for rollback safety. No code should
+                             # read it; drop in a later cleanup phase.
   cadence_days: int          # THE DECAY RATE. Tier presets map to values; custom = any int.
   estimated_minutes: int
   effort: "quick" | "deep"   # two levels only
@@ -105,7 +116,8 @@ Badge                       # achievement definitions
 UserBadge
   user_id -> User, badge_id -> Badge, earned_at
 
-Setting                     # per-user config (daily focus count, reminder times, overlays on/off)
+Setting                     # per-user config (daily focus count, reminder times, overlays on/off,
+                            # vacation_until, zone_lane_enabled, zone_3_extra_room_id)
   id, user_id -> User (nullable = app-wide), key, value
 ```
 
@@ -135,9 +147,29 @@ ratio = (now - last_done_at) / cadence_days       # in matching units
 
 **Completion** sets `last_done_at = now`, which drops `ratio` to 0 and restarts the curve. Write a `CompletionLog` row on every completion.
 
-**Room aggregate dirtiness** (for room view): roughly the max/average `ratio` across that room's active tasks, mapped to the same color bands.
+**Room aggregate dirtiness** (for room view): roughly the max/average `ratio` across that room's active tasks, mapped to the same color bands — **excluding out-of-window zone tasks** (see below), so a room never reads dirty because of work that isn't currently askable.
 
-Keep the decay/ranking logic in a clearly separated, documented service module (e.g. `services/scheduling.py`) — it's the core of the app and will be read and tuned often.
+### Scheduling lanes (Phase 10/11)
+
+> **One experience, multiple clocks.** Decay schedules recurring upkeep; the zone calendar schedules detailed and decluttering missions; manual projects never create debt. All lanes share one calm interface and one completion path — they do **not** share one eligibility rule.
+
+Decay is no longer the only scheduler — it is the scheduler for *recurring* work. `task_type` says which clock governs a task:
+
+| task_type | Scheduler | Surfaces |
+|---|---|---|
+| `routine` | decay | daily focus, timed sessions — eligible everywhere, always |
+| `weekly_blessing` | decay + preferred day | whole-home upkeep (vacuum, mop, dust, sheets) |
+| `zone` | active-zone gate, then decay ranks *within the pool* | current-zone sessions; ONE composed mission in daily focus |
+| `maintenance` | decay, long cadences | maintenance filter + normal focus when due |
+| `project` | manual only | explicit selection; NEVER automatic, never debt |
+
+Selection lives in **separate selector functions** (`recurring_candidates`, `zone_candidates`, `project_candidates`) composed by `compose_focus` — not switches inside one candidate query. The backend derives the current zone for automatic selection; the client never says which zone is "now."
+
+**The no-debt rule.** When the active zone changes, unfinished zone missions simply stop being admitted to automatic selection — no rescheduling, no missed-task records, no reminders, no carryover, no state mutation of any kind. When the zone returns, they're eligible again, history intact. A zone task's internal `ratio` may climb past 1.2 while its zone is inactive; that state is **never displayed as red/overdue**. Out-of-window zone tasks show a quiet neutral waiting state ("waits for Kitchen Week") in muted ink — a fact, not a nag — and show their real band only during their active window. Planning views still list them fully; only the dirtiness *presentation* changes.
+
+**Zones are not campaigns.** A campaign has a finite checklist and may legitimately show progress. A zone is a *recurring eligibility window* and must never show a percentage, denominator, carryover count, or failure state.
+
+Keep the decay/ranking logic in a clearly separated, documented service module (e.g. `services/scheduling.py`) — it's the core of the app and will be read and tuned often. Anything touching `dirtiness_ratio`, the ranking, the zone calendar, or lane eligibility requires tests first.
 
 ---
 
@@ -147,7 +179,7 @@ Keep the decay/ranking logic in a clearly separated, documented service module (
 
 The signature interaction. Triggered by "I have X minutes," or by picking a room, or by "this week's zone."
 
-1. Compute the priority ranking behind the scenes, filtered by the trigger (time budget, room, zone, effort, or `guest_facing`).
+1. Gather candidates behind the scenes per the §4 lanes — recurring work for normal/timed sessions (plus at most **one** current-zone mission when it fits the budget), *only* zone missions for a zone session, `guest_facing` routines for guest mode — then rank and filter by the trigger (time budget, room, effort).
 2. For a time budget: greedily pick tasks whose `estimated_minutes` cumulatively fit the budget.
 3. **Present ONE task at a time** as a single card: room tag, task name (large), time estimate, a big **Done** button, and a quiet **Skip for now**.
 4. Show only a **small progress signal** — three dots / "2 of 3" / a shrinking timer — so she feels momentum and a finish line, but never sees the full list.
@@ -173,6 +205,7 @@ It's a cleaning *coach*, not a to-do list. Picking a room or zone launches the s
 
 - **Badges / achievements only.** No XP, no levels. Collectible, positive-only — you *earn* them, you can never *lose* one. Examples: first task done, 7-day streak, completed a full zone week, a guest-mode rescue, first seasonal campaign finished, 100 tasks, early bird.
 - **Streaks must be forgiving.** A streak flame is fine, but a broken streak must never sting. Build in grace days / an auto-applied "freeze" so a missed day doesn't wipe progress. The reward system is strictly *encouraging*, never *punishing* — consistent with the no-guilt voice above.
+- **Zones never show progress.** No zone percentage, mission count, carryover indicator, or catch-up copy anywhere (§4: zones are not campaigns). Rewards are accumulation-only across the board — Done Today never shows a denominator either.
 
 ---
 
@@ -182,16 +215,16 @@ Most features are lenses or modes over the §3 model + §4 engine — not separa
 
 **Core scheduling (Phase 1).** The decay engine (§4). Cadence = decay rate, with tier presets + custom intervals. Completion resets the curve.
 
-**Rooms & task views (Phase 1).** Two ways to browse the same tasks: a **Room view** (grouped by room, each showing aggregate dirtiness) and a **Task/global view** (one flat, sortable, filterable list across the home — by dirtiness, room, effort, category). Both are planning-surface (Chromebook) tools.
+**Rooms & task views (Phase 1).** Two ways to browse the same tasks: a **Room view** (grouped by room, each showing aggregate dirtiness) and a **Task/global view** (one flat, sortable, filterable list across the home — by dirtiness, room, effort, task type, assignee). Both are planning-surface (Chromebook) tools. Planning shows *everything* — including out-of-window zone missions, which display their quiet waiting state instead of a band color (§4).
 
 **Cadence tiers + custom (Phase 1).** Presets (daily→annual) and arbitrary custom intervals; just how `cadence_days` gets set on a task.
 
 **Onboarding wizard (Phase 1, Chromebook-first).** Capture a home profile — rooms (and zone mapping if zones are enabled), household members, pets/kids context. Then **auto-generate a starter task list** with sensible default cadences, time, and effort per room so she gets a working schedule in a couple of minutes, then edits from there. Also where she enables/disables the optional overlays (zones, campaigns) and sets up supplies.
 
-**Daily-use lenses (Phase 1) — all read the one priority ranking:**
-- **Daily focus (1–3 tasks).** The calm home screen: the top 1–3 tasks by priority, not a wall. Backlog is one tap away, not the default. `N` configurable (default 3).
-- **"I have X minutes" mode.** Time-budget filter (default 15; let her set 5/30/45). Greedy fill by priority.
-- **Energy filter.** Weight by `effort`: low-energy surfaces quick wins, deep-clean day surfaces big tasks. Stacks with the other two.
+**Daily-use lenses (Phase 1; composed across lanes since Phase 11):**
+- **Daily focus (1–3 tasks).** The calm home screen: 1–3 cards, not a wall. With the zone lane on: the top recurring task, **one** current-zone mission (when the overlay is on and a mission is eligible), and the next recurring task — same cards, new sourcing, no new elements. Backlog is one tap away, not the default. `N` configurable (default 3).
+- **"I have X minutes" mode.** Time-budget filter (default 15; let her set 5/30/45). Greedy fill by priority from recurring work, plus at most one current-zone mission when it fits — slotted by priority, never forced to position 1.
+- **Energy filter.** Weight by `effort`: low-energy surfaces quick wins, deep-clean day surfaces big tasks. Stacks with the other two, and applies to **both** the recurring and zone pools — low-energy days deserve low-energy missions too.
 - **Decay-aware snooze.** Defers the *reminder* (later today / tomorrow / a few days) **without** resetting `last_done_at` — the task keeps aging quietly and resurfaces, but she isn't nagged now and nothing is falsely marked done. No guilt language.
 
 **Supplies (Phase 2).** A small inventory: each supply is `in_stock` / `low` / `out`, set **manually** (one tap — no auto-decrement, which is guesswork that drifts). Tasks link to the supplies they use. When a task whose linked supply is `low`/`out` surfaces, flag it inline ("heads up — you're low on floor cleaner"). **Tada has no *replenishment* shopping list of its own** — when a supply is marked `low`/`out`, Tada pushes it into **MealGenie's existing shopping list** (which the owner already uses and loves) via MealGenie's API. One-way push; deduped via `last_pushed_at` so nothing is added twice; each item tagged (source `tada`, category `household`) so supplies stay distinguishable from groceries. The MealGenie-side changes are specified in the build-prompts file.
@@ -202,20 +235,22 @@ The distinction matters since Phase 6: **MealGenie's list is the ongoing repleni
 
 **Multi-user assign/claim (Phase 2).** Kids get their **own logins** (role `kid`) with **basic functionality**: see their assigned/claimable chores, check them off. **On completion, notify the owner** (via push). Tasks can be assigned to a member or left open to claim. **No rewards, points, or gamification for the kids' chores** — purely assignment + completion + notification.
 
-**Maintenance tasks (Phase 2).** Same engine, `category = maintenance`, long cadences (HVAC filters, smoke/CO batteries, gutters, descaling). Give them their own section/filter so they don't clutter daily cleaning.
+**Maintenance tasks (Phase 2).** Same engine, `task_type = maintenance` (formerly `category`), long cadences (HVAC filters, smoke/CO batteries, gutters, descaling). Give them their own section/filter so they don't clutter daily cleaning.
 
-**Guest / "Chaos Cleaning" mode (Phase 3).** The "I have X minutes" lens pointed at **guest-facing areas only.** Trigger: "company in [time]." Filter to `guest_facing = true` tasks, fill the time budget by impact — a fast, high-visibility punch list, skipping deep/hidden tasks. Runs as a focus session.
+**Guest / "Chaos Cleaning" mode (Phase 3).** The "I have X minutes" lens pointed at **guest-facing areas only.** Trigger: "company in [time]." Filter to `guest_facing = true` tasks, fill the time budget by impact — a fast, high-visibility punch list, skipping deep/hidden tasks. Runs as a focus session. **Routines only** (Phase 11): zone missions and projects are excluded even when flagged guest-facing — "wipe cabinet fronts" is a mission, not a company-in-twenty-minutes task.
 
 **Seasonal campaigns (Phase 3).** Episodic bundled projects (e.g. "Spring Cleaning"): a named `Campaign` grouping tasks with a date window and a progress rollup. Activate it → the app surfaces the campaign's task set, spread over days, tracking % complete. Distinct from everyday decay tasks. An opt-in overlay.
 
-**FlyLady zone cleaning (Phase 3).** An **opt-in overlay**, not a replacement for the decay model. FlyLady divides the home into five zones, each getting focused ~15-min/day detailed cleaning for one week of the month:
+**FlyLady zone cleaning (Phase 3 as a room filter; corrected to a lane in Phases 10–11).** Opt-in. FlyLady divides the home into five zones, each getting focused ~15-min/day detailed attention for one week of the month:
 - **Zone 1** — entrance, front porch, dining room — the first few days of the month
 - **Zone 2** — kitchen — first full week
-- **Zone 3** — main bathroom + one other room — second full week
+- **Zone 3** — main bathroom + one other room — second full week (the second room can rotate; it's the `zone_3_extra_room_id` setting, editable each rotation)
 - **Zone 4** — master bedroom, bath, and closet — third full week
 - **Zone 5** — living room / family room — the last few days (zones 1 and 5 often share a calendar week)
 
-Implement: a zone→room mapping (defaulting to the five above but fully editable in onboarding — most homes differ), plus a rule that derives the *current* zone from today's date. A "This week's zone" view surfaces that zone's tasks as a focus session. The decay engine keeps driving everyday upkeep; the zone overlay adds a rotating deep-clean focus on top. Seed each zone's task list in FlyLady's structure, editable by her.
+A zone is an **eligibility window for `task_type="zone"` missions** (§4 lanes), *not* a filter over all of a room's tasks. Routines continue everywhere regardless of the active zone; zone work is *additional* focused attention, never a replacement for ordinary upkeep. A zone session contains only the current zone's missions — never the room's dishes. Missions are **5–15 minute bounded actions** ("clean one refrigerator shelf"), and decluttering generally precedes detailed cleaning where clutter blocks access. She works for a small amount of time and stops; the zone never has to be *completed*, and rollover creates no debt (§4). The zone→room mapping stays fully editable; the current zone derives from today's date **in her local timezone**. Manual selection of an inactive zone's missions is a planning-path affordance, not a primary doing surface. Everything gates behind `zone_lane_enabled` — off means pure global decay, cleanly.
+
+> **How the original wording caused a four-phase gap:** this entry used to read "an opt-in overlay... surfaces that zone's tasks as a focus session," which a correct-to-spec build implemented as a room filter over the global ranking — so Kitchen Zone sessions served dishes, and neglected missions surfaced globally during other zones' weeks. The spec is persistent build context; when a feature's *meaning* is wrong here, every faithful build is wrong. Fix meaning here first, then build.
 
 **Badges (introduced alongside the reward moments; core definitions can seed in Phase 1, expanded later).** See §5.
 
@@ -227,7 +262,17 @@ Implement: a zone→room mapping (defaulting to the five above but fully editabl
 - **Phase 0.5 — Design foundation.** Establish design tokens (the §5 palette/type/spacing/motion) as the single source of truth and a core set of React primitives (Button, Card, Chip, the focus/task card, app shell, celebration) on a preview page — before any feature UI, so every later phase composes the same components. Grow the library per phase from the tokens.
 - **Phase 1 — The spine.** Decay engine, rooms, both views, cadence, onboarding, daily focus, "I have X minutes," energy filter, snooze, reminders. A complete, useful app.
 - **Phase 2 — People, supplies, maintenance.** Kid logins + check-off + owner notifications, assign/claim, supply inventory (low/out items push into MealGenie's shopping list), maintenance category.
-- **Phase 3 — Overlays.** Guest/Chaos mode, seasonal campaigns, FlyLady zones.
+- **Phase 3 — Overlays.** Guest/Chaos mode, seasonal campaigns, FlyLady zones (as a room filter; corrected in 10–11).
+- **Phase 4 — Packing lists.** Self-contained module + 10 starter templates; no decay, full-checklist UI.
+- **Phase 4.5 — Bugs & hardening.** Scroll fix, delete on active lists, skipped-to-back, PIN uniqueness, notification toggle read path, cron logging/tagging/isolation.
+- **Phase 4.6 — Composition & control.** Room+time and zone+time sessions, editable last-done date, vacation mode (pause nudges, keep decay), add-an-adult, assignee filter.
+- **Phase 5 — Rewards & Done Today.** Forgiving streaks + badges wired into `complete_task`, done-today view (accumulation only), cron-backed session timer.
+- **Phase 6 — Lists generalization.** Packing → general lists (`kind`), collapsible sections, prices/running totals, new templates.
+- **Phase 7 — Decay engine test suite.** Pure unit tests over ratio, bands, ranking, tie-breaks, never-done, room aggregation.
+- **Phase 8 — Preferred-day boost.** Additive Saturday+grace-Sunday lift; a boost, never a schedule.
+- **Phase 9 — Undo a completion.** Today-only; reverses decay state, never streaks or badges.
+- **Phase 10 — Task types & scheduling lanes.** `task_type` + backfill + separate selectors + zone-calendar tests, behind `zone_lane_enabled`, zero behavior change.
+- **Phase 11 — The composer & zone surfaces.** `compose_focus`, mission-only zone sessions, the waiting state, Maryann's reclassification review as a stage gate, flag flips on.
 
 Build one phase at a time; verify each works before starting the next. Detailed per-phase prompts are in the build-prompts file.
 

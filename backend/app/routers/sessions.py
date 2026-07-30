@@ -35,19 +35,27 @@ def daily_focus(
     db: Session = Depends(get_db),
 ) -> FocusResponse:
     """The calm home screen (SPEC §6): top 1–3 tasks by priority. The
-    count comes from the daily_focus_count setting."""
+    count comes from the daily_focus_count setting. With the Phase 11
+    lanes active, the composer sources the same cards across lanes —
+    routine / one current-zone mission / routine; otherwise (the
+    permanent rollback boundary) the legacy global-decay path."""
     limit = int(settings_service.get_setting(db, current_user.id, "daily_focus_count"))
     effort = effort if effort in ("quick", "deep") else None
-    tasks = scheduling.daily_focus(
-        db,
-        limit=limit,
-        for_user_id=current_user.id,
-        effort=effort,
-        tz=settings_service.user_timezone(db, current_user.id),
-    )
+    tz = settings_service.user_timezone(db, current_user.id)
+    if settings_service.lanes_active(db, current_user.id):
+        tasks = scheduling.compose_focus(
+            db, limit=limit, for_user_id=current_user.id, effort=effort, tz=tz
+        )
+    else:
+        tasks = scheduling.daily_focus(
+            db, limit=limit, for_user_id=current_user.id, effort=effort, tz=tz
+        )
+    # ctx supplies the mission card's zone label; composed cards are all
+    # in-window, so no "waiting" band can appear here.
+    ctx = scheduling.presentation_context(db, current_user.id, tz=tz)
     total = db.scalar(select(func.count(Task.id)).where(Task.is_active.is_(True))) or 0
     return FocusResponse(
-        tasks=[task_to_read(t) for t in tasks],
+        tasks=[task_to_read(t, ctx=ctx) for t in tasks],
         total_active_tasks=total,
     )
 
@@ -61,14 +69,43 @@ def build_session(
     """Build a focus session (SPEC §5): "I have X minutes" greedy fill,
     a room, and — Phase 3 — guest/Chaos mode, "this week's zone", or a
     campaign's daily slice. The frontend presents the result one task at
-    a time — never as a list."""
+    a time — never as a list.
+
+    With the Phase 11 lanes active, sessions compose across lanes: zone
+    sessions become mission-only, and every other (non-guest) session
+    draws recurring work plus at most one current-zone mission. Guest
+    mode stays on the legacy path — its routines-only filter lives in
+    candidate_tasks. Lanes off means the legacy path for everything."""
     tz = settings_service.user_timezone(db, current_user.id)
+    lanes = settings_service.lanes_active(db, current_user.id)
+    exclude_ids = set(payload.exclude_task_ids) or None
     if payload.campaign_id is not None:
         campaign = db.get(Campaign, payload.campaign_id)
         if campaign is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
         today = zone_service.local_today(db, current_user.id)
         tasks = campaign_service.today_slice(db, campaign, today, tz=tz)
+    elif lanes and payload.zone_missions:
+        tasks = scheduling.zone_mission_session(
+            db,
+            for_user_id=current_user.id,
+            minutes=payload.minutes,
+            zone_id=payload.zone_id,
+            effort=payload.effort,
+            exclude_ids=exclude_ids,
+            tz=tz,
+        )
+    elif lanes and not payload.guest:
+        tasks = scheduling.compose_session(
+            db,
+            for_user_id=current_user.id,
+            minutes=payload.minutes,
+            room_id=payload.room_id,
+            effort=payload.effort,
+            zone_id=payload.zone_id,
+            exclude_ids=exclude_ids,
+            tz=tz,
+        )
     else:
         tasks = scheduling.build_session(
             db,
@@ -78,11 +115,12 @@ def build_session(
             effort=payload.effort,
             zone_id=payload.zone_id,
             guest_only=payload.guest,
-            exclude_ids=set(payload.exclude_task_ids) or None,
+            exclude_ids=exclude_ids,
             tz=tz,
         )
+    ctx = scheduling.presentation_context(db, current_user.id, tz=tz)
     return SessionBuildResponse(
-        tasks=[task_to_read(t) for t in tasks],
+        tasks=[task_to_read(t, ctx=ctx) for t in tasks],
         total_minutes=sum(t.estimated_minutes for t in tasks),
     )
 

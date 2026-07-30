@@ -5,15 +5,18 @@
  * as "this one could use some love", never as being behind.
  */
 
-import type { Band, Effort } from "./api";
+import type { Band, Effort, TaskType } from "./api";
 import type { ChipTone } from "@/components/ui";
 
-/** The status token each band reads from (defined in globals.css). */
+/** The status token each band reads from (defined in globals.css).
+ * "waiting" (Phase 11) is deliberately the muted ink, never a status
+ * color: an out-of-window zone mission is a fact, not a warning. */
 export const BAND_COLOR_VAR: Record<Band, string> = {
   fresh: "var(--status-fresh)",
   aging: "var(--status-aging)",
   due: "var(--status-due)",
   overdue: "var(--status-overdue)",
+  waiting: "var(--color-ink-soft)",
 };
 
 /** Warm labels — priority as a gradient, never a scold. */
@@ -22,11 +25,28 @@ export const BAND_LABEL: Record<Band, string> = {
   aging: "Doing fine",
   due: "Ready for a clean",
   overdue: "Could use some love",
+  waiting: "Waiting for its week",
 };
+
+/** The quiet waiting line for an out-of-window zone mission — a fact in
+ * muted ink ("waits for Kitchen week"), never red, never a nag. */
+export function waitingLabel(zoneName: string | null): string {
+  return zoneName ? `waits for ${zoneName} week` : "waits for its zone week";
+}
 
 export const EFFORT_LABEL: Record<Effort, string> = {
   quick: "Quick win",
   deep: "Deep clean",
+};
+
+/** Plain-language lane names (Phase 10 — read-only chip in planning
+ * views; the same labels become editable in Phase 11's review). */
+export const TASK_TYPE_LABEL: Record<TaskType, string> = {
+  routine: "Everyday routine",
+  weekly_blessing: "Weekly upkeep",
+  zone: "Zone mission",
+  maintenance: "Maintenance",
+  project: "Project",
 };
 
 /** Cadence tier presets (SPEC §3). */

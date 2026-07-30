@@ -291,21 +291,88 @@ function SettingsScreen({ currentUserId }: { currentUserId: number }) {
             🧭 FlyLady zones — one area gets a little extra love each week
           </label>
 
+          {/* The Phase 11 scheduling lanes. Off = the app exactly as it
+              was; on = zone missions wait for their week and one joins
+              the home screen during it. Flip it only after the task-type
+              review — the composer is only as good as the types under it. */}
+          {settings.zones_enabled && (
+            <>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={settings.zone_lane_enabled}
+                  onChange={(e) => save({ zone_lane_enabled: e.target.checked })}
+                />
+                🎯 Zone missions keep to their week
+              </label>
+              <p className={styles.help}>
+                Detail missions (“clean one fridge shelf”) only come up during
+                their room’s zone week — and one joins your home screen while
+                it’s on. Before turning this on, give each task’s type a quick
+                look in All tasks so everything lands in the right lane.
+              </p>
+            </>
+          )}
+
           {settings.zones_enabled && zonesData && (
             <div className={styles.zoneEditor}>
               {zonesData.zones.map((zone) => (
-                <div key={zone.id} className={styles.zoneRow}>
-                  <span className={styles.zoneWeek}>
-                    Week {zone.week_of_month}
-                    {zone.id === zonesData.current_zone_id && " · now"}
-                  </span>
-                  <input
-                    type="text"
-                    defaultValue={zone.name}
-                    onBlur={(e) => handleZoneRename(zone.id, e.target.value)}
-                    className={styles.input}
-                    aria-label={`Zone ${zone.week_of_month} name`}
-                  />
+                <div key={zone.id}>
+                  <div className={styles.zoneRow}>
+                    <span className={styles.zoneWeek}>
+                      Week {zone.week_of_month}
+                      {zone.id === zonesData.current_zone_id && " · now"}
+                    </span>
+                    <input
+                      type="text"
+                      defaultValue={zone.name}
+                      onBlur={(e) => handleZoneRename(zone.id, e.target.value)}
+                      className={styles.input}
+                      aria-label={`Zone ${zone.week_of_month} name`}
+                    />
+                    {/* The planning path for missions (Phase 11): any
+                        zone's missions, ahead of or behind its week —
+                        deliberately here, never on the home screen. */}
+                    {settings.zone_lane_enabled && (
+                      <button
+                        type="button"
+                        className={styles.zoneMissionLink}
+                        onClick={() =>
+                          router.push(
+                            `/session?zone=${zone.id}&missions=1&minutes=${settings.default_session_minutes}&label=${encodeURIComponent(zone.name)}`,
+                          )
+                        }
+                      >
+                        ▸ missions
+                      </button>
+                    )}
+                  </div>
+                  {/* Zone 3's rotating second room (Phase 11): one pick,
+                      swap it whenever the rotation changes. */}
+                  {settings.zone_lane_enabled &&
+                    zone.week_of_month === 3 &&
+                    rooms.length > 0 && (
+                      <div className={styles.extraRoomRow}>
+                        <span className={styles.extraRoomLabel}>
+                          Extra room this rotation
+                        </span>
+                        <select
+                          value={settings.zone_3_extra_room_id}
+                          onChange={(e) =>
+                            save({ zone_3_extra_room_id: e.target.value })
+                          }
+                          className={styles.input}
+                          aria-label="Zone 3 extra room"
+                        >
+                          <option value="">None right now</option>
+                          {rooms.map((room) => (
+                            <option key={room.id} value={String(room.id)}>
+                              {room.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                 </div>
               ))}
 

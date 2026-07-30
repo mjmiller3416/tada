@@ -26,6 +26,11 @@ class SessionBuildRequest(BaseModel):
     zone_id: int | None = None
     campaign_id: int | None = None
     guest: bool = False
+    # Phase 11: a mission-only zone session ("this week's zone", or the
+    # planning path with an explicit zone_id). Ignored while the lanes
+    # are off — the request gracefully degrades to the legacy zone-scoped
+    # session, so an updated client never breaks against the flag.
+    zone_missions: bool = False
     # Phase 5: a timer-extend top-up excludes what's already queued so
     # the added minutes bring genuinely new tasks.
     exclude_task_ids: list[int] = Field(default_factory=list)

@@ -101,6 +101,10 @@ function SessionScreen() {
   const zoneParam = searchParams.get("zone");
   const campaignParam = searchParams.get("campaign");
   const isGuest = searchParams.get("guest") === "1";
+  // Phase 11: a mission-only zone session ("this week's zone"). The
+  // backend ignores it while the lanes are off, so this link degrades
+  // gracefully to the legacy zone session.
+  const isMissions = searchParams.get("missions") === "1";
   const label = searchParams.get("label");
 
   const mode: Mode = campaignParam
@@ -171,6 +175,7 @@ function SessionScreen() {
           zone_id: zoneParam ? Number(zoneParam) : undefined,
           campaign_id: campaignParam ? Number(campaignParam) : undefined,
           guest: isGuest || undefined,
+          zone_missions: isMissions || undefined,
         }),
       )
       .then((session) => {
@@ -189,7 +194,7 @@ function SessionScreen() {
         }
       })
       .catch(() => setPhase("empty"));
-  }, [minutesParam, roomParam, effortParam, zoneParam, campaignParam, isGuest]);
+  }, [minutesParam, roomParam, effortParam, zoneParam, campaignParam, isGuest, isMissions]);
 
   useEffect(() => {
     build();
@@ -307,6 +312,7 @@ function SessionScreen() {
             : undefined,
         zone_id: zoneParam ? Number(zoneParam) : undefined,
         guest: isGuest || undefined,
+        zone_missions: isMissions || undefined,
         exclude_task_ids: tasks.map((t) => t.id),
       });
       const queued = new Set(tasks.map((t) => t.id));
@@ -430,6 +436,14 @@ function SessionScreen() {
             roomName={current.room_name ?? undefined}
             roomTone={roomTone(current.room_id)}
             supplyNote={supplyNote(current) ?? undefined}
+            // The one composed mission in a timed/room session carries
+            // its zone label (Phase 11). Zone sessions already say so in
+            // the header tag, so no per-card repeat there.
+            missionLabel={
+              mode !== "zone" && current.task_type === "zone" && current.zone_name
+                ? `🧭 This week’s ${current.zone_name} mission`
+                : undefined
+            }
             current={index + 1}
             total={tasks.length}
             onDone={() => handleDone(current)}

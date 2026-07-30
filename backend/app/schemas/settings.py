@@ -15,6 +15,11 @@ class SettingsRead(BaseModel):
     zones_enabled: bool
     campaigns_enabled: bool
     vacation_until: str  # "YYYY-MM-DD" (last paused day), or "" when home
+    # Phase 11: the scheduling-lanes flag (flips on after the
+    # reclassification review) and Zone 3's rotating second room (a room
+    # id as a string, "" = none this rotation).
+    zone_lane_enabled: bool
+    zone_3_extra_room_id: str
 
 
 class SettingsUpdate(BaseModel):
@@ -25,6 +30,17 @@ class SettingsUpdate(BaseModel):
     zones_enabled: bool | None = None
     campaigns_enabled: bool | None = None
     vacation_until: str | None = None
+    zone_lane_enabled: bool | None = None
+    zone_3_extra_room_id: str | None = None
+
+    @field_validator("zone_3_extra_room_id")
+    @classmethod
+    def validate_extra_room(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return value  # "" is meaningful: no extra room this rotation
+        if not value.isdigit():
+            raise ValueError("must be a room id, or empty for no extra room")
+        return value
 
     @field_validator("daily_nudge_time")
     @classmethod

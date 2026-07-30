@@ -23,6 +23,14 @@
   gap: var(--space-3);
 }
 
+/* A composed mission's quiet zone label (Phase 11) — context, never a
+   counter. */
+.missionLabel {
+  margin: var(--space-2) 0 calc(-1 * var(--space-2));
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
 .taskName {
   margin: var(--space-2) 0 0;
   font-size: var(--text-2xl);

@@ -20,6 +20,8 @@ def _to_read(values: dict[str, str]) -> SettingsRead:
         zones_enabled=values["zones_enabled"] == "true",
         campaigns_enabled=values["campaigns_enabled"] == "true",
         vacation_until=values["vacation_until"],
+        zone_lane_enabled=values["zone_lane_enabled"] == "true",
+        zone_3_extra_room_id=values["zone_3_extra_room_id"],
     )
 
 

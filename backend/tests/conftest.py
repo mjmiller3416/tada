@@ -50,7 +50,8 @@ def make_task():
         fields = dict(
             name="Wipe counters",
             room_id=None,
-            category="cleaning",
+            category="cleaning",  # deprecated column; kept explicit for detached objects
+            task_type="routine",
             cadence_days=7,
             estimated_minutes=10,
             effort="quick",

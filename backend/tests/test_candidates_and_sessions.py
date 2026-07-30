@@ -71,8 +71,9 @@ class TestFreshnessGate:
 
     def test_maintenance_tasks_are_excluded_from_cleaning_surfaces(self, db, add_task):
         # SPEC §6: maintenance lives in its own section/filter so it never
-        # clutters daily cleaning — the lens only serves category "cleaning".
-        furnace = add_task(name="furnace filter", category="maintenance")
+        # clutters daily cleaning. Phase 10: the maintenance lane is
+        # task_type (category is deprecated and no longer written).
+        furnace = add_task(name="furnace filter", task_type="maintenance")
         assert furnace not in candidate_tasks(db, now=NOW)
 
 

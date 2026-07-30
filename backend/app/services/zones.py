@@ -1,13 +1,15 @@
-"""The FlyLady zone overlay (SPEC §6, Phase 3).
+"""The FlyLady zone overlay (SPEC §6; Phase 3, corrected in 10–11).
 
 An opt-in layer on top of the decay engine — never a replacement. The
 home is divided into five zones, each getting one focused week per
-month; "this week's zone" is derived from today's date and surfaces its
-rooms' tasks as a normal focus session. The decay engine keeps driving
-everyday upkeep underneath.
+month. Since the scheduling lanes (SPEC §4), a zone is an ELIGIBILITY
+WINDOW for task_type="zone" missions — "this week's zone" is derived
+from today's date in her timezone and gates which missions are askable.
+The decay engine keeps driving everyday upkeep underneath, everywhere,
+regardless of the active zone.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, tzinfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -63,6 +65,15 @@ def current_zone(db: Session, today: date) -> Zone | None:
     up (overlay never seeded)."""
     week = week_of_month(today)
     return db.scalar(select(Zone).where(Zone.week_of_month == week))
+
+
+def zone_for_moment(db: Session, now: datetime, tz: tzinfo) -> Zone | None:
+    """The zone whose week contains `now` in the given timezone — the
+    backend-derived "current zone" the Phase 10 zone lane selects by.
+    Injectable now/tz (unlike local_today, which reads the clock) so the
+    her-midnight-not-UTC boundary is directly testable: the zone must
+    flip when HER day does."""
+    return current_zone(db, now.astimezone(tz).date())
 
 
 def seed_default_zones(db: Session) -> list[Zone]:

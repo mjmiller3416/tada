@@ -981,3 +981,304 @@ access also already works — no data is scoped per user and `require_owner` onl
 so a second owner account sees everything she sees.
 
 **Timer — deferred.** The in-app timer for tasks is postponed. It may be revisited once the core task management and undo functionality are stable, as it is not critical to the immediate workflow and adds complexity to the UI. **Currently implemented as a notification only.**
+
+=====
+
+# Tada — Build Prompts: Phases 10 & 11 (Zone Lane)
+
+> Came out of Maryann using zones for a full rotation: the current implementation is a
+> faithful build of the original SPEC §6 ("an opt-in overlay, not a replacement") — and that
+> is exactly the problem. The spec said "zone filter"; she meant "zone lane." A Kitchen Zone
+> session hands her dishes because dishes are the dirtiest tasks in the mapped rooms, and a
+> neglected oven task eventually surfaces globally during Bedroom Week. Both follow logically
+> from one shared scheduling universe; neither matches how zone cleaning actually works.
+>
+> The mismatch in one sentence: Tada asks "which tasks in this room are dirtiest?" — she is
+> asking "which routine needs attention, and what is ONE useful mission in this week's zone?"
+>
+> The governing invariant for both phases, to be added to SPEC §4 as part of Phase 11:
+>
+> **One experience, multiple clocks.** Decay schedules recurring upkeep; the zone calendar
+> schedules detailed and decluttering missions; manual projects never create debt. All lanes
+> share one calm interface and one completion path — they do not share one eligibility rule.
+>
+> This is surgery above the decay engine, not on it. The engine, completion flow, undo,
+> streaks, badges, assignments, supplies, snooze, reminders, and nearly all frontend
+> components stay exactly as they are.
+>
+> Split into two phases on purpose: Phase 10 makes the DATA right (model, backfill,
+> selectors, tests) with zero behavior change and everything behind a flag. Phase 11 changes
+> BEHAVIOR (the composer, the surfaces, her review pass) and flips the flag. A full deploy
+> boundary sits between "the data is correct" and "the app acts differently" — the same
+> sequencing that has shipped every phase of this app safely while Maryann uses it daily.
+
+---
+
+## Phase 10 — Task types & scheduling lanes (data + selectors, no behavior change)
+
+```
+Read cleaning-app-spec.md (§3 model, §4 engine, §6 zones) and the zone-lane preamble in this
+file. Build Phase 10: the task-type classification and the separated candidate selectors,
+entirely behind a feature flag. NOTHING user-visible changes in this phase — after deploy,
+the app must behave identically to Phase 9. That is the acceptance bar.
+
+THE CORE DESIGN DECISION, read this first: a room's routine tasks and its detailed zone
+missions are currently indistinguishable — both are just Task rows ranked by decay. This
+phase makes them distinguishable and gives each lane its own selector, without yet changing
+what any surface shows.
+
+Zone tasks KEEP cadence_days and decay (minimal-risk path). During their active zone, decay
+ranks them against each other; outside it, they are simply not admitted to automatic
+selection. Their internal ratio may climb past 1.2 while the zone is inactive — that state
+must NEVER be presented as red/overdue debt (Phase 11 handles the display; this phase just
+must not make it worse). A cadence-free zone pool is a possible LATER migration, only after
+she has lived with this one for a rotation or two — do not build it now.
+
+Build:
+
+1. MIGRATION (additive, follows the latest): add `task_type` VARCHAR(30) NOT NULL
+   DEFAULT 'routine' to tasks. Values: "routine" | "weekly_blessing" | "zone" |
+   "maintenance" | "project".
+   In the SAME migration, backfill: UPDATE tasks SET task_type='maintenance' WHERE
+   category='maintenance'.
+   `task_type` SUPERSEDES `category` — do not leave two parallel classifications alive
+   long-term. In this phase: keep the category column untouched (rollback safety), but make
+   task_type the single source of truth in code. Every read of Task.category outside the
+   migration itself must be replaced: candidate_tasks()'s `category == "cleaning"` filter
+   becomes `task_type != 'maintenance'` semantics (see item 4), the /tasks category filter
+   param maps onto task_type, and task creation stops writing meaningful categories. Add a
+   comment on the model marking `category` deprecated-pending-removal in a later phase.
+
+2. NAME-BASED BACKFILL for the seeded starter tasks. Tada is one household — a reviewed
+   one-time mapping beats a clever inference engine. Build an explicit mapping in the
+   migration (or a companion script) from the exact seeded names in
+   backend/app/services/starter_tasks.py to types. The intent, using the kitchen template
+   as the pattern:
+   - routine: "Wipe down the counters", "Do the dishes / load the dishwasher",
+     "Sweep the floor", "Take out the trash & recycling", "Make the bed",
+     "Quick tidy" variants, "Reset pillows & fold blankets", "Wipe the table",
+     "Toy reset", "Tidy shoes & coats", "Clear the desk"
+   - weekly_blessing: the recurring whole-home upkeep — "Vacuum the floor" variants,
+     "Mop the floor", "Dust the surfaces" variants, "Change the sheets",
+     "Clean the mirror", "Swap the towels", "Sweep or vacuum the floor"
+   - zone: the detail/declutter work — "Clean the microwave", "Wipe cabinet fronts &
+     handles", "Clean out the fridge", "Deep-clean the oven", "Scrub the shower / tub",
+     "Vacuum under the cushions", "Wash the windows", "Declutter ..." variants,
+     "Sort the paper pile", "Polish the table & chairs", "Wash the bath mats",
+     "Deep-clean the washer", "Wipe the TV & electronics"
+   Unmatched names default to 'routine' (the safe default — it behaves exactly as today).
+   Her own hand-made tasks stay 'routine' too; Phase 11 gives her the review pass. Log a
+   count per type so the migration output shows the split.
+
+3. UPDATE THE STARTER TEMPLATES in services/starter_tasks.py: add task_type to StarterTask
+   and every template entry per the mapping above, so future onboarding and room generation
+   create correctly typed tasks. While in there, split the oversized zone tasks into
+   5–15 minute missions — a zone mission is one bounded action, not a project:
+   - "Clean out the fridge" (25 min) -> "Clean one refrigerator shelf" (10),
+     "Wash one fridge drawer" (10), "Wipe the fridge door shelves" (5),
+     "Toss expired food" (10)
+   - "Declutter outgrown toys" (30) -> "Pick five toys to donate" (10),
+     "Sort one toy bin" (10)
+   - "Sort the paper pile" (20) -> "Sort one stack of papers" (10)
+   - "Tidy the workbench / shelves", "Declutter one corner/shelf/bin" are already
+     mission-sized — just type them.
+   Template changes affect NEW generation only. Do NOT touch her existing task rows here —
+   splitting her live tasks is her call, in Phase 11's review.
+   "Deep-clean the oven" stays ONE task typed 'zone' (45 min is long but it is one bounded
+   action); anything genuinely project-shaped (reorganize entire closet) would be 'project',
+   but no seeded task currently qualifies — the type exists for her to use.
+
+4. SEPARATE SELECTOR FUNCTIONS in services/scheduling.py. candidate_tasks() is clean today
+   BECAUSE it assumes one scheduling universe; task types create several, so make the
+   boundary explicit in code rather than adding more switches:
+   - recurring_candidates(...): task_type IN ('routine', 'weekly_blessing', 'maintenance'),
+     current filtering semantics otherwise unchanged (assignment exclusion, snooze, fresh
+     cutoff, effort, room). This is a rename-and-narrow of the existing path.
+   - zone_candidates(...): task_type='zone' AND the task's room maps to the given zone,
+     ranked by the same decay ranking within the pool. The BACKEND derives the current zone
+     for automatic use (zones.current_zone + her timezone) — never trust the client to say
+     which zone is active for the main "what should I do" path. An explicit zone_id
+     parameter remains for planning/manual sessions.
+   - project_candidates(...): manual-only; returns nothing unless explicitly requested.
+     Projects NEVER enter automatic selection and never create debt.
+   Keep candidate_tasks() as-is and still wired to every surface — in this phase the new
+   selectors are built, tested, and called by nothing in production paths.
+
+5. FEATURE FLAG: a settings key `zone_lane_enabled` (default "false") through
+   settings_service, following the vacation_until pattern. Phase 10 ships with it off and
+   nothing reading it except tests. The rollback boundary FOREVER after is: turn the flag
+   off and the old composer path returns — never drop the column, never rewrite history.
+
+6. EXPOSE task_type read-only: add it to TaskRead and the Task type in frontend lib/api.ts,
+   and show it as a small non-interactive chip on TaskRow in the planning views (Chromebook
+   surfaces only — nothing on the phone doing surfaces). Read-only in this phase; editing
+   comes with Phase 11's review UI. This gives Mitchell and Maryann a way to eyeball the
+   backfill before any behavior depends on it.
+
+7. TESTS — this is half the phase. Extend the Phase 7 suite:
+   a. ZONE CALENDAR TESTS, which do not exist today (Phase 7 covered decay only;
+      week_of_month and current_zone have never had a test):
+      - months beginning on every weekday (all 7)
+      - February at 28 days and leap-year February
+      - 30- and 31-day months
+      - the Zone 5 -> next month's Zone 1 boundary week
+      - her local timezone immediately before and after midnight (the zone must flip on
+        HER midnight, not UTC's)
+   b. ELIGIBILITY TESTS:
+      - a routine kitchen task remains in recurring_candidates during Bedroom Week
+      - a kitchen zone task is absent from zone_candidates during Bedroom Week
+      - the same task appears in zone_candidates during Kitchen Week
+      - a bedroom zone task drops out the moment Kitchen Week begins
+      - one room can hold routine AND zone tasks and each lane sees only its own
+      - zone_candidates returns nothing when zones_enabled is off
+      - project tasks appear in NO automatic selector
+      - explicit zone_id still retrieves an inactive zone's tasks (planning path)
+   c. NO-DEBT TESTS:
+      - zone rollover writes no CompletionLog rows, no Reminders, and mutates no task state
+      - a zone task at ratio 3.0 outside its window is simply ineligible — nothing else
+      - when the zone returns, the task is eligible again with its history intact
+   d. COMPLETION-PATH TESTS:
+      - completing a zone task via the normal path resets last_done_at, writes the log,
+        feeds streaks and badges identically to a routine task
+      - the Phase 9 undo round-trip test, repeated on a task_type='zone' task: capture
+        ratio + band, complete, undo, assert both match exactly
+   e. REGRESSION GUARD: with the flag off, candidate_tasks/daily_focus/build_session
+      produce byte-identical rankings to before this phase. Assert it directly.
+
+Follow SPEC §8 conventions. When done, summarize what you built, print the backfill's
+per-type counts, and confirm the existing decay engine tests pass unchanged.
+```
+
+**Phase 10 is done when:** the migration has run with the per-type counts looking sane, the
+planning views show a type chip on every task, all new calendar/eligibility/no-debt tests
+pass alongside the untouched Phase 7 suite — and the app, with the flag off, behaves exactly
+as it did the day before.
+
+---
+
+## Phase 11 — The composer & the zone surfaces (behavior change, flag flips on)
+
+```
+Read cleaning-app-spec.md (§1 guide-don't-list, §4, §5 no-guilt, §6) and the Phase 10
+section above. Build Phase 11: the focus composer, the corrected zone surfaces, the
+waiting-state display, and Maryann's reclassification review. This phase flips
+zone_lane_enabled on once the review pass is done.
+
+THE HOME SCREEN RULE, read this first: the home screen gains NO new elements in this phase.
+The composer changes what SOURCES the existing 1–3 cards — it does not add cards, chips,
+counters, or progress. A small text label on an existing card ("This week's Kitchen
+mission") is the entire visual budget. No zone percentage, no mission count, no carryover
+indicator, no catch-up copy — a zone is a recurring eligibility window, not a campaign, and
+it must never grow a denominator or a failure state.
+
+Build:
+
+1. compose_focus() in services/scheduling.py, used by /api/focus when the flag is on:
+   - Card 1: the top recurring candidate (routine/weekly_blessing/maintenance, exactly
+     today's semantics).
+   - Card 2: the single best mission from the CURRENT zone (backend-derived), when the
+     zones overlay is on and the zone has an eligible mission.
+   - Card 3: the next recurring candidate.
+   - Fewer eligible tasks -> fewer cards, same as today. daily_focus_count still caps the
+     total. Energy filter applies to BOTH pools — a five-minute task can still mean painful
+     scrubbing, and low-energy days deserve low-energy missions too.
+   - Zones overlay off, or flag off -> exactly the current global-decay behavior. Toggling
+     off must cleanly return to the core experience, same as every overlay.
+
+2. TIMED SESSIONS ("I have X minutes"), flag on:
+   - Draw from recurring_candidates, and include AT MOST ONE current-zone mission when it
+     fits the remaining budget — slotted by priority, not forced to position 1.
+   - The mission's card carries the zone label; everything else is unchanged: greedy fill,
+     MAX_SESSION_TASKS, one card at a time, skip-to-back.
+
+3. ZONE SESSIONS (launched from "This week's zone"):
+   - Contain ONLY task_type='zone' missions from the current zone, ranked by decay within
+     the pool. No more dishes in a Kitchen Zone session — that is the bug this whole
+     effort exists to fix.
+   - Empty pool -> the existing warm empty state ("This zone is feeling fresh").
+
+4. THE PHASE 4.6 HOME-SCREEN ZONE SELECTOR ("Just Kitchen" on a timed session) inherits the
+   same mismatch and must not remain as a stray door to old behavior. Repurpose it: with
+   the flag on, picking a zone on a timed session means "recurring work from that zone's
+   rooms, plus that zone's missions" — the composed semantics, scoped to the zone. Manual
+   selection of an INACTIVE zone's missions moves to the planning path (the Zones page),
+   not the primary doing surface.
+
+5. GUEST / CHAOS MODE draws from routines only: add task_type != 'zone' (and != 'project')
+   to the guest filter. "Wipe cabinet fronts" may be flagged guest_facing but it is a
+   mission, not a company-in-twenty-minutes task. One clause, one test.
+
+6. THE WAITING STATE — the display question Phase 10 deliberately deferred, and it MUST
+   ship before the flag flips or planning views bleed red debt for three weeks a month:
+   - A zone task outside its active window shows NO band color anywhere (Room view, Task
+     view, TaskRow dots). Instead: a quiet neutral state — "waits for Kitchen Week" — in
+     the muted ink color, never red, never a warning.
+   - During its active window it shows its real band as normal.
+   - Room aggregate dirtiness EXCLUDES out-of-window zone tasks, so a room never reads
+     dirty because of work that is not currently askable.
+   - Planning views still list these tasks fully (planning shows everything); only the
+     dirtiness PRESENTATION changes.
+
+7. RECLASSIFICATION REVIEW UI (Chromebook): make the Phase 10 type chip editable in the
+   task form and TaskRow, with plain-language labels — "Everyday routine", "Weekly upkeep",
+   "Zone mission", "Maintenance", "Project" — not enum strings. Then Mitchell sits down
+   with Maryann and walks her real task set: correct types, split any of HER oversized
+   tasks into missions (the Phase 10 splits touched templates only), and sanity-check each
+   room. This review is a REQUIRED stage gate — the flag does not flip until it is done,
+   because the composer is only as good as the classification underneath it.
+
+8. ZONE 3'S ROTATING SECOND ROOM: Zone 3 is the main bathroom plus one extra area that she
+   may want to rotate (boys' room, hallway storage, craft storage...). Store it as a simple
+   settings key (`zone_3_extra_room_id`, empty = none) editable on the Zones page —
+   NOT a ZoneRoom membership table with rotation roles. That is a generalized subsystem no
+   real usage has asked for yet; a one-line setting covers her actual need and is trivial
+   to change each rotation. zone_candidates() unions the extra room's zone tasks into
+   Zone 3's pool when set.
+
+9. COMPOSITION TESTS:
+   - compose_focus returns routine / zone-mission / routine when all pools have candidates
+   - no eligible mission -> the slot falls back to recurring work (never an empty card)
+   - a weekly_blessing with preferred_day=Saturday AND a zone mission compose correctly on
+     a Saturday inside that room's zone week — the three boosts/gates interacting is where
+     regressions will hide, so pin the expected order explicitly
+   - guest mode never yields a zone or project task
+   - flag off -> compose_focus is never called and legacy output is byte-identical
+   - zone_3_extra_room_id set -> its zone tasks join Zone 3's pool; unset -> they don't
+   - the waiting state: an out-of-window zone task reports band=None (or a distinct
+     "waiting" value) through the API, and room aggregates ignore it
+
+DO NOT in this phase: split her live tasks automatically; add any effort-model changes (the
+duration-vs-physical-energy split stays CUT until she names three concrete examples — the
+architecture review re-raising it does not change the bar); build the cadence-free zone
+pool; add zone progress anywhere; drop the category column (that is a later cleanup phase
+once task_type has survived a full rotation).
+
+ROLLOUT: deploy with the flag off. Run the review pass (item 7). Flip the flag. Then verify
+with real use, on her actual phone: at least one partial zone week and one rollover.
+Confirm routines continue across all zones, missions disappear outside their window without
+becoming debt, and the home screen still feels calm.
+
+Follow SPEC §8 conventions. When done, summarize what you built and confirm the Phase 7 and
+Phase 10 test suites pass unchanged.
+```
+
+**Phase 11 is done when:** her home screen shows a routine, one Kitchen mission during
+Kitchen Week, and another routine; a Kitchen Zone session contains missions and never
+dishes; an unfinished mission quietly waits — uncolored — until its zone returns; guest mode
+stays routine-only; Maryann has personally reviewed every task's type; and turning the flag
+off restores yesterday's app exactly.
+
+---
+
+## Working notes (Phases 10–11)
+
+- The two failure modes to re-test after any tuning: dishes appearing in a zone session,
+  and an out-of-window mission showing red anywhere. Either one means a lane leaked.
+- Approach B (cadence-free zone pools ranked by never-done/oldest/sort-order) is the
+  candidate NEXT migration, decided only after one or two full rotations of real use. If
+  decay-within-zone ranking feels natural to her, skip it forever.
+- The category-column drop is its own tiny cleanup phase later — additive out, additive in.
+- Watch the waiting-state copy for guilt-drift: "waits for Kitchen Week" is a fact;
+  "still needs doing" is a nag. The former only.
+- The badge set already fits the lane model unchanged (zone_first reads completion source,
+  not task_type). No reward-system work needed in either phase.
