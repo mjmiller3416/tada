@@ -1,0 +1,57 @@
+/* The post-completion Undo toast (Phase 9): quiet by design. It sits
+   low, waits out the Done celebration before appearing, and fades on
+   its own — a safety net that never competes with the reward moment. */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Clear of the fixed bottom nav (AppShell reserves 76px + inset);
+     also a comfortable reach on the nav-less session screen. */
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  z-index: 60;
+  opacity: 0; /* hidden until toastIn's delay lets the burst land */
+  animation: toastIn var(--motion-base) var(--ease-standard) 400ms forwards;
+}
+
+.leaving {
+  animation: toastOut var(--motion-base) var(--ease-standard) forwards;
+}
+
+/* Low-contrast on purpose — present if she needs it, invisible if not. */
+.undo {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-5);
+  min-height: var(--tap-target);
+  box-shadow: var(--shadow-card);
+}
+
+.undo:active {
+  color: var(--color-ink);
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

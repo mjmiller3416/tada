@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
-import { getDoneToday, type DoneTodayResponse } from "@/lib/api";
+import {
+  getDoneToday,
+  undoCompletion,
+  type DoneTodayEntry,
+  type DoneTodayResponse,
+} from "@/lib/api";
 import { roomTone } from "@/lib/decay";
 import { NAV_ITEMS } from "@/lib/nav";
 import { AppShell, Card, Chip } from "@/components/ui";
@@ -37,7 +42,7 @@ function DoneTodayScreen() {
   const [data, setData] = useState<DoneTodayResponse | null>(null);
   const [newBadgeIds, setNewBadgeIds] = useState<Set<number>>(new Set());
 
-  useEffect(() => {
+  const load = useCallback(() => {
     getDoneToday()
       .then((response) => {
         const seen = readSeenBadges();
@@ -68,6 +73,26 @@ function DoneTodayScreen() {
         }),
       );
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  /** Undo one completion (Phase 9): the row leaves the list; the streak
+   * display is deliberately untouched — streaks only ever go up. If it
+   * was the only one, the normal warm empty state simply returns, with
+   * no mention of the undo. */
+  function handleUndo(entry: DoneTodayEntry) {
+    setData(
+      (current) =>
+        current && {
+          ...current,
+          completions: current.completions.filter((c) => c.id !== entry.id),
+        },
+    );
+    // Quietly resync if the server disagrees (e.g. the day rolled over).
+    undoCompletion(entry.id).catch(() => load());
+  }
 
   function timeOf(iso: string): string {
     return new Date(iso).toLocaleTimeString(undefined, {
@@ -130,6 +155,16 @@ function DoneTodayScreen() {
                   {entry.room_name && (
                     <Chip tone={roomTone(entry.room_id)}>{entry.room_name}</Chip>
                   )}
+                  {/* Small and secondary on purpose — a safety net,
+                      never a button competing with the content. */}
+                  <button
+                    type="button"
+                    className={styles.undoLink}
+                    onClick={() => handleUndo(entry)}
+                    aria-label={`Undo ${entry.task_name}`}
+                  >
+                    Undo
+                  </button>
                 </Card>
               ))}
             </section>

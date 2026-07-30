@@ -56,6 +56,19 @@ class TestCompleteTask:
         assert log.completed_at == NOW
         assert log.source == "focus_session"
 
+    def test_captures_the_previous_last_done_at_for_undo(self, db, make_task, owner):
+        # Phase 9: the value the completion overwrote rides on the log
+        # row, so undo can restore it exactly — even after a Phase 4.6
+        # date correction that wrote no log row of its own.
+        task = _add_task(db, make_task, last_done_at=days_ago(14))
+        log = complete_task(db, task, owner, "direct", NOW)
+        assert log.previous_last_done_at == days_ago(14)
+
+    def test_first_ever_completion_captures_null(self, db, make_task, owner):
+        task = _add_task(db, make_task, last_done_at=None)
+        log = complete_task(db, task, owner, "direct", NOW)
+        assert log.previous_last_done_at is None
+
     def test_every_completion_writes_its_own_log(self, db, make_task, owner):
         task = _add_task(db, make_task)
         complete_task(db, task, owner, "direct", NOW)

@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
+import UndoToast from "@/components/UndoToast";
 import {
   buildSession,
   cancelSessionTimer,
@@ -11,7 +12,9 @@ import {
   completeTask,
   extendSessionTimer,
   startSessionTimer,
+  undoCompletion,
   type Badge,
+  type CompleteResponse,
   type CompletionSource,
   type Effort,
   type SessionTimer,
@@ -135,6 +138,15 @@ function SessionScreen() {
   // the decay engine about it.
   const skippedIdsRef = useRef<Set<number>>(new Set());
 
+  // The Undo toast (Phase 9): always for the most recent Done. Keyed so
+  // each completion restarts the toast's linger; the ref carries the
+  // in-flight completion post whose id an undo would need.
+  const [undoKey, setUndoKey] = useState<number | null>(null);
+  const lastCompletionRef = useRef<{
+    post: Promise<CompleteResponse | null>;
+    minutes: number;
+  } | null>(null);
+
   const build = useCallback(() => {
     setPhase("loading");
     setIndex(0);
@@ -206,13 +218,33 @@ function SessionScreen() {
   function handleDone(task: Task) {
     // Log it, but never block her flow on the network — the card has
     // already celebrated.
-    pendingCompletionsRef.current.push(
-      completeTask(task.id, copy.source).catch(() => {}),
-    );
+    const post = completeTask(task.id, copy.source).catch(() => null);
+    pendingCompletionsRef.current.push(post);
+    // Offer Undo for a beat (Phase 9) — except in guest mode, which
+    // stays deliberately minimal for a houseguest.
+    if (mode !== "guest") {
+      lastCompletionRef.current = { post, minutes: task.estimated_minutes };
+      setUndoKey((k) => (k ?? 0) + 1);
+    }
     skippedIdsRef.current.delete(task.id);
     setDoneCount((n) => n + 1);
     setDoneMinutes((m) => m + task.estimated_minutes);
     advance();
+  }
+
+  function handleUndo() {
+    const last = lastCompletionRef.current;
+    lastCompletionRef.current = null;
+    if (!last) return;
+    // Fire-and-forget, like the completion itself — undo never holds
+    // her up either. If the completion post failed, there is nothing
+    // on the server to reverse.
+    last.post.then((done) => {
+      if (done) undoCompletion(done.completion_id).catch(() => {});
+    });
+    // Keep the session's own numbers honest.
+    setDoneCount((n) => Math.max(0, n - 1));
+    setDoneMinutes((m) => Math.max(0, m - last.minutes));
   }
 
   function handleSkip(task: Task) {
@@ -295,6 +327,16 @@ function SessionScreen() {
   return (
     <main className={styles.page}>
       <Confetti active={confetti} onComplete={() => setConfetti(false)} />
+
+      {/* Undo for the last Done (Phase 9). An overlay, never a gate —
+          the next card is already up and she can keep going past it. */}
+      {undoKey !== null && (
+        <UndoToast
+          key={undoKey}
+          onUndo={handleUndo}
+          onGone={() => setUndoKey(null)}
+        />
+      )}
 
       <header className={styles.topBar}>
         {copy.tag && (

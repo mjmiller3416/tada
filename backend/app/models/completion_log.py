@@ -25,6 +25,13 @@ class CompletionLog(Base):
     )
     # "focus_session" | "direct" | "guest_mode" | "zone" | "campaign"
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="direct")
+    # The task's last_done_at as it stood when this completion overwrote
+    # it (Phase 9): the exact value undo restores. NULL = a first-ever
+    # completion (undo returns the task to never-done) — or a row from
+    # before the 0010 migration, an accepted one-day edge.
+    previous_last_done_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Read-side convenience for the Done Today view (Phase 5).
     task: Mapped["Task"] = relationship("Task")  # noqa: F821

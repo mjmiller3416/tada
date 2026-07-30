@@ -7,6 +7,7 @@ import AuthGate from "@/components/AuthGate";
 import DirtinessDot from "@/components/DirtinessDot";
 import KidHome from "@/components/KidHome";
 import SnoozeMenu from "@/components/SnoozeMenu";
+import UndoToast from "@/components/UndoToast";
 import {
   completeTask,
   getCampaigns,
@@ -14,6 +15,7 @@ import {
   getSettings,
   getZones,
   snoozeTask,
+  undoCompletion,
   updateSettings,
   type Campaign,
   type Effort,
@@ -72,6 +74,10 @@ function HomeScreen({ firstName }: { firstName: string }) {
   const [celebratingId, setCelebratingId] = useState<number | null>(null);
   const [snoozingId, setSnoozingId] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The Undo toast (Phase 9), keyed per completion so its linger timer
+  // restarts; the ref holds the completion an undo would reverse.
+  const [undoKey, setUndoKey] = useState<number | null>(null);
+  const undoCompletionIdRef = useRef<number | null>(null);
 
   const loadFocus = useCallback((filter: EffortFilter) => {
     getFocus(filter === "all" ? undefined : filter)
@@ -144,12 +150,27 @@ function HomeScreen({ firstName }: { firstName: string }) {
     setCelebratingId(task.id);
     timerRef.current = setTimeout(async () => {
       try {
-        await completeTask(task.id, "direct");
+        const done = await completeTask(task.id, "direct");
+        // The burst has landed — now offer a quiet Undo for a beat
+        // (Phase 9), in case that Done wasn't meant.
+        undoCompletionIdRef.current = done.completion_id;
+        setUndoKey((k) => (k ?? 0) + 1);
+      } catch {
+        // The reload below shows the honest state either way.
       } finally {
         setCelebratingId(null);
         loadFocus(effort);
       }
     }, DONE_POP_MS);
+  }
+
+  function handleUndo() {
+    const completionId = undoCompletionIdRef.current;
+    undoCompletionIdRef.current = null;
+    if (completionId === null) return;
+    undoCompletion(completionId)
+      .catch(() => {})
+      .finally(() => loadFocus(effort));
   }
 
   async function handleSnooze(task: Task, option: Exclude<SnoozeOption, "wake">) {
@@ -424,6 +445,16 @@ function HomeScreen({ firstName }: { firstName: string }) {
         <Link href="/done-today" className={styles.doneTodayLink}>
           ✨ See what you’ve gotten done today
         </Link>
+      )}
+
+      {/* Undo for the last Done (Phase 9) — an overlay, not a screen
+          element, so the calm home stays exactly as it is. */}
+      {undoKey !== null && (
+        <UndoToast
+          key={undoKey}
+          onUndo={handleUndo}
+          onGone={() => setUndoKey(null)}
+        />
       )}
     </AppShell>
   );

@@ -865,3 +865,116 @@ so a second owner account sees everything she sees.
   these phases may add another.
 - Every build prompt here carries an explicit feature checklist on purpose. The badge system
   went unbuilt for four phases because it lived in the spec but never in a prompt.
+
+  # Tada — Build Prompt: Phase 9
+
+>
+> Came out of Maryann using the app daily after Phases 4.5–8 shipped: she wants to undo a task
+> she marked complete by mistake. It's the most on-brand feature request the app has had — the
+> whole premise is that mistakes and gaps are fine, and this applies that idea to the app's own
+> primary interaction.
+>
+> Safe to build now specifically *because* Phase 7 landed. It touches the engine's anchor field,
+> and the test suite will catch a regression.
+
+---
+
+## Phase 9 — Undo a completion
+
+```
+Read cleaning-app-spec.md §4 (the decay engine) and §5 (no-guilt design). Build Phase 9: undo
+for an accidentally completed task.
+
+THE CORE DESIGN DECISION, read this first: undo reverses the DECAY STATE ONLY. It restores
+`last_done_at` and removes the CompletionLog row. It does NOT touch streaks, and it does NOT
+revoke badges. Streaks only ever go up.
+
+The reasoning, so you don't "improve" on it:
+- Badges are already earned-once-never-revoked by design (SPEC §5), so that part is settled.
+- For streaks, compare the two failure modes. If undo leaves the streak alone, she keeps credit
+  for a day she technically didn't earn — and nobody is auditing. If undo reverses it, one
+  mis-tap plus a correction can destroy a 30-day streak. That asymmetry is not close.
+- Reversing a streak correctly is also genuinely hard: you'd have to know whether other
+  completions happened that day, whether THIS completion caused the increment, and whether a
+  grace day was involved.
+- It sidesteps multi-user entirely — if one person completes something and another undoes it,
+  there's no question about whose streak moved.
+
+SCOPE: today's completions only. Anything older is already handled by the editable last-done
+date from Phase 4.6. Do NOT build a general-purpose completion history editor or a time
+machine — a short window plus the existing escape hatch covers every real case.
+
+Build:
+
+1. MIGRATION (additive, follows the latest): add a nullable `previous_last_done_at` datetime
+   column to the completion log table.
+   Why store it rather than derive it: the previous value COULD be read from the prior
+   CompletionLog row, but that breaks in a real case — Phase 4.6's editable last-done date
+   deliberately sets `last_done_at` WITHOUT writing a log row. So if she corrects a date, then
+   completes by mistake, then undoes, a log-derived restore would silently discard her
+   correction. Storing the value makes undo exact and removes all reasoning about log ordering.
+
+2. CAPTURE THE PREVIOUS VALUE. Update `scheduling.complete_task()` to write the task's existing
+   `last_done_at` into `previous_last_done_at` on the new log row before overwriting it. This is
+   the only edit to existing engine code in this phase — keep it minimal and leave everything
+   else in that function exactly as it is.
+   Note: for a first-ever completion the previous value is legitimately NULL, and undo must
+   restore the task to never-done. That is correct behavior, not a bug.
+   Known edge, acceptable: CompletionLog rows created BEFORE this migration will have NULL in
+   the new column, indistinguishable from a genuine never-done. Since undo is only offered on
+   today's completions, the exposure is the first day after deploy, and the consequence is mild
+   and self-correcting (the task reads as never-done, surfaces high, and she can fix it with the
+   Phase 4.6 date editor). Don't engineer around this.
+
+3. THE REVERSE FUNCTION, in backend/app/services/scheduling.py alongside `complete_task()`.
+   Given a completion log row it should:
+   - restore `task.last_done_at` from `previous_last_done_at`, preserving NULL as NULL
+   - delete the log row
+   - leave `current_streak`, `longest_streak`, and `last_active_date` untouched
+   - leave earned badges untouched
+   - leave `snoozed_until` cleared — completion cleared it, and undo does not bring a snooze
+     back. Restoring a snooze on undo would be surprising, and she can snooze again in a tap.
+   - take an injectable `now` like every other function in this module
+   - refuse anything not completed today, and return a clear error the UI can handle
+   Permissions: an owner can undo any of today's completions; a kid can undo only their own.
+   This is a correction, not a dispute — don't build anything more elaborate.
+
+4. UNDO IN THE COMPLETION TOAST. This is the main use case, since an accidental tap gets
+   noticed immediately.
+   - Appears after the celebration, and must NOT compete with it. Let the burst have its
+     moment, then a small, low-contrast "Undo" that lingers a few seconds and fades.
+   - Label it exactly "Undo". Nothing that reads as an accusation — no "Oops", no "Mistake?",
+     no "Did you mean to do that?".
+   - NO confirmation dialog. A confirm on an undo is absurd; undo IS the safety net.
+   - CRITICAL: in a focus session the toast must not gate or delay advancing to the next task.
+     She should be able to keep going immediately and have it fade on its own.
+
+5. UNDO PER ROW IN DONE TODAY. Nearly free, since that view already lists today's completions
+   from the log, and it catches the other real case: "I marked the wrong task."
+   - A small, secondary affordance per row — not a button competing with the content.
+   - On undo the row leaves the list. The streak display must NOT change.
+   - If it was the only completion today, the view returns to its normal warm empty state.
+     The empty copy must not acknowledge the undo — no "you undid everything", no running
+     total that went down. It reads exactly as it would on a quiet morning.
+
+6. LEAVE GUEST MODE ALONE. Don't add undo to the guest-mode surface. It's a deliberately
+   minimal screen for a houseguest, and an undo affordance there is confusing rather than kind.
+
+7. EXTEND THE PHASE 7 TEST SUITE:
+   - undo restores the exact previous `last_done_at`
+   - undo of a first-ever completion restores never-done (NULL preserved)
+   - undo deletes the log row
+   - undo leaves `current_streak`, `longest_streak`, and `last_active_date` unchanged
+   - undo does not revoke a badge earned by the completion it reverses
+   - a snooze cleared by completion stays cleared after undo
+   - ROUND TRIP: capture a task's dirtiness ratio and band, complete it, undo it, and assert
+     the ratio and band match the original exactly. This is the test that matters most.
+   - undo is refused for a completion from a previous day
+
+Follow SPEC §8 conventions. When done, summarize what you built and confirm the existing decay
+engine tests still pass unchanged.
+```
+
+**Phase 9 is done when:** she can tap Undo right after a mis-tap or from Done Today, the task
+returns to exactly the priority it had before, her streak doesn't budge, and nothing in the
+copy suggests she did anything wrong.

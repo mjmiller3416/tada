@@ -352,10 +352,18 @@ def complete_task(
     from app.services import streaks
 
     now = now or _utcnow()
+    # Captured before the overwrite (Phase 9): the exact value undo
+    # restores. NULL on a first-ever completion is legitimate — undo of
+    # that returns the task to never-done.
+    previous_last_done_at = task.last_done_at
     task.last_done_at = now
     task.snoozed_until = None
     log = CompletionLog(
-        task_id=task.id, completed_by=user.id, completed_at=now, source=source
+        task_id=task.id,
+        completed_by=user.id,
+        completed_at=now,
+        source=source,
+        previous_last_done_at=previous_last_done_at,
     )
     db.add(log)
     db.flush()  # the badge checks below count this completion too
@@ -363,6 +371,46 @@ def complete_task(
     streaks.update_streak(db, user, now)
     badge_service.evaluate_completion(db, user, now)
     return log
+
+
+class UndoWindowClosed(Exception):
+    """An undo was asked of a completion from a previous day. Older
+    corrections go through the Phase 4.6 last-done editor instead."""
+
+
+def undo_completion(
+    db: Session,
+    log: CompletionLog,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> Task:
+    """Undo a completion (Phase 9): reverse the DECAY STATE ONLY.
+
+    Restores task.last_done_at from the value the completion overwrote
+    (NULL preserved as NULL — a first-ever completion undoes back to
+    never-done) and deletes the log row. Deliberately untouched:
+    - streaks (current_streak, longest_streak, last_active_date) — one
+      mis-tap plus a correction must never cost a 30-day streak; streaks
+      only ever go up.
+    - badges — earned once, never revoked (SPEC §5).
+    - snoozed_until — completion cleared it and undo does not bring a
+      snooze back; she can snooze again in a tap.
+
+    Only today's completions qualify ("today" in her local day via `tz`);
+    anything older raises UndoWindowClosed — the Phase 4.6 editable
+    last-done date already covers history. Caller commits."""
+    now = now or _utcnow()
+    local = tz or timezone.utc
+    if _aware(log.completed_at).astimezone(local).date() != now.astimezone(local).date():
+        raise UndoWindowClosed(
+            "That one's from a previous day — you can adjust the task's "
+            "last-done date instead."
+        )
+    task = db.get(Task, log.task_id)
+    task.last_done_at = log.previous_last_done_at
+    db.delete(log)
+    db.flush()
+    return task
 
 
 def snooze_task(task: Task, option: str, now: datetime | None = None) -> datetime:

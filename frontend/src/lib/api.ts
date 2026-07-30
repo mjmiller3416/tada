@@ -188,10 +188,25 @@ export type CompletionSource =
   | "zone"
   | "campaign";
 
+export type CompleteResponse = Task & {
+  /** The CompletionLog row this completion wrote — the handle the Undo
+   * toast needs (Phase 9). */
+  completion_id: number;
+};
+
 export function completeTask(id: number, source: CompletionSource) {
-  return apiFetch<Task>(`/api/tasks/${id}/complete`, {
+  return apiFetch<CompleteResponse>(`/api/tasks/${id}/complete`, {
     method: "POST",
     body: JSON.stringify({ source }),
+  });
+}
+
+/** Undo one of today's completions (Phase 9): decay state only — the
+ * task returns to exactly the priority it had. Streaks and badges are
+ * deliberately untouched; they only ever go up. */
+export function undoCompletion(completionId: number) {
+  return apiFetch<Task>(`/api/completions/${completionId}/undo`, {
+    method: "POST",
   });
 }
 

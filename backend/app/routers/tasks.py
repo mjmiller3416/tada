@@ -10,6 +10,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user, require_owner
 from app.schemas.tasks import (
     CompleteRequest,
+    CompleteResponse,
     SnoozeRequest,
     TaskCreate,
     TaskRead,
@@ -189,16 +190,17 @@ def _can_complete(task: Task, user: User) -> bool:
     return task.claimable and task.assignee_id is None
 
 
-@router.post("/{task_id}/complete", response_model=TaskRead)
+@router.post("/{task_id}/complete", response_model=CompleteResponse)
 def complete_task(
     task_id: int,
     payload: CompleteRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> TaskRead:
+) -> CompleteResponse:
     """Done! Resets the decay curve and writes the CompletionLog (SPEC §4).
     Any pending snooze reminder is dropped so she's never nudged about
-    finished work. A kid's completion notifies the owner (SPEC §6)."""
+    finished work. A kid's completion notifies the owner (SPEC §6). The
+    log row's id rides back so a mis-tap can be undone (Phase 9)."""
     task = _get_task(db, task_id)
     if not _can_complete(task, current_user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "That one isn't yours to check off")
@@ -210,7 +212,8 @@ def complete_task(
     campaign_service.mark_done_in_running_campaigns(
         db, task.id, zone_service.local_today(db, current_user.id)
     )
-    scheduling.complete_task(db, task, current_user, payload.source)
+    log = scheduling.complete_task(db, task, current_user, payload.source)
+    completion_id = log.id  # read pre-commit; the object expires after
     reminder_service.clear_task_reminders(db, task.id)
     db.commit()
 
@@ -223,7 +226,7 @@ def complete_task(
         notify_owners(db, "Ta-da! 🎉", f"{first_name} just checked off {task.name}{where}.")
 
     db.refresh(task)
-    return task_to_read(task)
+    return CompleteResponse(**task_to_read(task).model_dump(), completion_id=completion_id)
 
 
 @router.post("/{task_id}/claim", response_model=TaskRead)

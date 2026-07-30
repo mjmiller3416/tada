@@ -100,6 +100,24 @@
   color: var(--color-ink-soft);
 }
 
+/* Per-row Undo (Phase 9): quiet text, tap-target height, never loud. */
+.undoLink {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: var(--space-1) var(--space-2);
+  min-height: var(--tap-target);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.undoLink:hover {
+  color: var(--color-ink);
+}
+
 /* ---- Badges ---- */
 
 .badgeSection {

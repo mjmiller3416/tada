@@ -136,5 +136,12 @@ class CompleteRequest(BaseModel):
     )
 
 
+class CompleteResponse(TaskRead):
+    """The completed task, plus the id of the CompletionLog row just
+    written — the handle the undo toast needs (Phase 9)."""
+
+    completion_id: int
+
+
 class SnoozeRequest(BaseModel):
     option: Literal["later_today", "tomorrow", "few_days", "wake"]
