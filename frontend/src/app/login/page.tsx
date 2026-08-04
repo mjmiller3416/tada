@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
 import { Button, Card } from "@/components/ui";
@@ -11,6 +11,18 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // AuthGate sends us here (not a silent bounce) when a session check
+  // failed for a reason other than "never logged in" — surface that
+  // instead of leaving her staring at a blank login screen. Read via
+  // window.location rather than useSearchParams so this page doesn't need
+  // a Suspense boundary.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "session") {
+      setError("Something went wrong loading your session — try logging in again.");
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, type CurrentUser } from "@/lib/api";
+import { ApiError, getCurrentUser, type CurrentUser } from "@/lib/api";
 import { ensurePushSubscription } from "@/lib/push";
 
 // Once per app load, not per page — the self-heal below only needs to
@@ -12,7 +12,11 @@ let pushEnsuredThisLoad = false;
 type State =
   | { status: "loading" }
   | { status: "authenticated"; user: CurrentUser }
-  | { status: "unauthenticated" };
+  | { status: "unauthenticated" }
+  // A 401 means "no session yet" — expected, redirect quietly. Anything
+  // else (network failure, 5xx, a session that didn't stick) is a real
+  // failure and must say so instead of silently bouncing to /login.
+  | { status: "session_error" };
 
 /**
  * Checks the session client-side (not via Next.js middleware) because the
@@ -39,8 +43,13 @@ export default function AuthGate({
       .then((user) => {
         if (!cancelled) setState({ status: "authenticated", user });
       })
-      .catch(() => {
-        if (!cancelled) setState({ status: "unauthenticated" });
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 401) {
+          setState({ status: "unauthenticated" });
+        } else {
+          setState({ status: "session_error" });
+        }
       });
     return () => {
       cancelled = true;
@@ -63,6 +72,8 @@ export default function AuthGate({
   useEffect(() => {
     if (state.status === "unauthenticated") {
       router.replace("/login");
+    } else if (state.status === "session_error") {
+      router.replace("/login?error=session");
     } else if (kidBlocked) {
       router.replace("/");
     }

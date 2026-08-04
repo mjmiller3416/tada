@@ -18,7 +18,12 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 _COOKIE_KWARGS = dict(
     httponly=True,
     secure=True,
-    samesite="none",
+    # "lax" not "none": the frontend proxies /api/* through its own origin
+    # (see frontend/next.config.ts), so this cookie is first-party. It used
+    # to be a genuine cross-site cookie between two Railway origins, which
+    # iOS Safari (esp. standalone/home-screen PWA mode) silently refuses to
+    # persist via ITP — login would "succeed" but the session never stuck.
+    samesite="lax",
     max_age=settings.session_max_age_days * 24 * 60 * 60,
     path="/",
 )

@@ -1,5 +1,3 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
 export class ApiError extends Error {
   status: number;
 
@@ -10,15 +8,17 @@ export class ApiError extends Error {
 }
 
 /**
- * Fetch wrapper for the FastAPI backend. Always sends credentials so the
- * backend's httpOnly session cookie round-trips even though the frontend
- * and backend are different Railway services (different origins).
+ * Fetch wrapper for the FastAPI backend. Calls a same-origin path — Next's
+ * rewrite in next.config.ts proxies it server-side to the backend — so the
+ * session cookie is first-party rather than a cross-site cookie between two
+ * different Railway origins (iOS Safari, especially standalone/home-screen
+ * PWA mode, silently drops cross-site cookies).
  */
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(path, {
     ...options,
     credentials: "include",
     headers: {
