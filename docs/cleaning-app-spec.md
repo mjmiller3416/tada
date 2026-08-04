@@ -98,6 +98,11 @@ CompletionLog               # history; feeds streaks, badges, and kid-completion
   completed_by -> User
   completed_at
   source: "focus_session" | "direct" | "guest_mode" | "zone" | "campaign"
+  previous_last_done_at: timestamp (nullable)   # Phase 9: the task's last_done_at at the
+                             # moment this completion overwrote it, so undo can restore
+                             # decay state exactly. NULL on rows written before Phase 9 —
+                             # indistinguishable from a genuine first completion, which is
+                             # why undo is offered only on today's completions.
 
 Reminder                    # the cron polls this table
   id, user_id -> User, task_id -> Task (nullable)
