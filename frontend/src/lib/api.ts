@@ -785,6 +785,32 @@ export function deleteListItem(id: number) {
   });
 }
 
+/* ---- Feedback (in-app report -> a GitHub issue on the Tada repo) ---- */
+
+export type FeedbackCategory = "Something's broken" | "Idea";
+
+/** Optional-string values only — omit a key entirely rather than
+ * inventing data for it (e.g. no app_version until a real build
+ * identifier exists). */
+export type FeedbackMetadata = Record<string, string | null>;
+
+export type FeedbackResponse = {
+  success: boolean;
+  message: string;
+  issue_url: string | null;
+};
+
+export function submitFeedback(input: {
+  category: FeedbackCategory;
+  message: string;
+  metadata?: FeedbackMetadata;
+}) {
+  return apiFetch<FeedbackResponse>("/api/feedback", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 /* ---- Onboarding ---- */
 
 export type OnboardingRoomInput = { name: string; type: string };

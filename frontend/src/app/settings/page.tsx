@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
+import FeedbackSection from "@/components/FeedbackSection";
 import HouseholdSection from "@/components/HouseholdSection";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
 import {
@@ -428,6 +429,8 @@ function SettingsScreen({ currentUserId }: { currentUserId: number }) {
           </p>
           <PushSubscribeButton />
         </Card>
+
+        <FeedbackSection />
 
         <Button variant="ghost" fullWidth onClick={handleLogout}>
           Log out

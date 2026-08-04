@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, campaigns, chores, completions, done_today, lists, members, onboarding, push, rooms, sessions
+from app.routers import auth, campaigns, chores, completions, done_today, feedback, lists, members, onboarding, push, rooms, sessions
 from app.routers import settings as settings_router
 from app.routers import supplies, tasks, zones
 
@@ -31,6 +31,7 @@ app.include_router(campaigns.router)
 app.include_router(lists.router)
 app.include_router(done_today.router)
 app.include_router(completions.router)
+app.include_router(feedback.router)
 
 
 @app.get("/health")

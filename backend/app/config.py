@@ -31,5 +31,12 @@ class Settings(BaseSettings):
     mealgenie_api_url: str = ""
     mealgenie_api_key: str = ""
 
+    # In-app feedback -> a GitHub issue on the Tada repo (services/
+    # github_service.py). A fine-grained PAT with Issues: write on that
+    # repo, and "owner/repo". Leave both empty to disable in local dev —
+    # submissions still return a response, just without a real issue.
+    github_token: str = ""
+    github_repo: str = ""
+
 
 settings = Settings()

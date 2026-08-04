@@ -96,6 +96,7 @@ same keys on the matching Railway service (Railway dashboard → service → Var
 | `FRONTEND_URL` (CORS) | ✓ | | |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_CLAIMS_EMAIL` | ✓ | ✓ | |
 | `MEALGENIE_API_URL` / `MEALGENIE_API_KEY` | ✓ | | |
+| `GITHUB_TOKEN` / `GITHUB_REPO` | ✓ | | |
 | `NEXT_PUBLIC_API_URL` | | | ✓ |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | | | ✓ |
 
@@ -111,6 +112,10 @@ Notes:
   (spec §6).
 - Leaving `MEALGENIE_API_URL`/`MEALGENIE_API_KEY` empty disables that integration
   without breaking anything else (supplies still track status locally).
+- `GITHUB_TOKEN` is a fine-grained PAT with Issues: write scoped to the one repo named
+  in `GITHUB_REPO` (e.g. `mjmiller3416/tada-cleaning-app`). Leaving either empty
+  disables in-app feedback's GitHub issue creation (the Settings section still submits
+  successfully; it just logs the report instead of filing an issue).
 
 ## 6. One-off / manual scripts
 

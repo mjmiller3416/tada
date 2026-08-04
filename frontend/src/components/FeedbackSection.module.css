@@ -1,0 +1,83 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.help {
+  margin: calc(-1 * var(--space-3)) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.toast {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-teal);
+  font-weight: var(--weight-bold);
+  min-height: 1.4em;
+  margin: calc(-1 * var(--space-2)) 0;
+}
+
+/* ---- The two-option category control — large tappable buttons, not a
+   dropdown, which is worse on mobile with only two choices. ---- */
+
+.categories {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+.categoryOption {
+  min-height: var(--tap-target);
+  padding: var(--space-3);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--motion-fast) var(--ease-pop),
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.categoryOption:active {
+  transform: scale(0.97);
+}
+
+.selected {
+  border-color: var(--color-coral);
+  background: var(--color-coral-soft);
+  color: var(--color-coral-strong);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 6rem;
+  padding: var(--space-3);
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-card);
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--color-coral);
+}
