@@ -211,6 +211,22 @@ class TestLaneEligibility:
         furnace = add_task(name="Change the furnace filter", task_type="maintenance")
         assert furnace in recurring_candidates(db, now=KITCHEN_WEEK)
 
+    def test_a_resting_mission_surfaces_once_its_pool_is_otherwise_empty(
+        self, db, add_task, owner, home, zones_on
+    ):
+        # Issue #8: the resting fallback (shared via _doing_eligible) rides
+        # every lane, including the zone pool — within its own week, a
+        # snoozed mission surfaces once nothing else in that pool needs
+        # doing, still flagged snoozed.
+        resting = add_task(
+            name="Deep-clean the oven",
+            room_id=home.kitchen.id,
+            task_type="zone",
+            snoozed_until=KITCHEN_WEEK + timedelta(hours=1),
+        )
+        assert resting in zone_candidates(db, for_user_id=owner.id, now=KITCHEN_WEEK)
+        assert resting.snoozed_until is not None
+
 
 # ---------------------------------------------------------------------------
 # The no-debt rule — rollover is pure non-selection

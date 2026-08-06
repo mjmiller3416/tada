@@ -22,6 +22,10 @@ type FocusCardProps = {
   /** The zone label a composed mission card carries (Phase 11), e.g.
    * "🧭 This week's Kitchen mission". Quiet context, never a counter. */
   missionLabel?: string;
+  /** Set when this card is a resting (snoozed) task surfaced because
+   * nothing else needs doing (Issue #8) — e.g. "resting until 4:00 PM".
+   * A fact, not a nag: she can still finish it early, or leave it. */
+  restingLabel?: string;
   /** 1-based position in the session, for the small progress signal. */
   current: number;
   total: number;
@@ -47,6 +51,7 @@ export default function FocusCard({
   roomTone = "periwinkle",
   supplyNote,
   missionLabel,
+  restingLabel,
   current,
   total,
   onDone,
@@ -80,6 +85,7 @@ export default function FocusCard({
       {missionLabel && <p className={styles.missionLabel}>{missionLabel}</p>}
       <h2 className={styles.taskName}>{taskName}</h2>
       <p className={styles.estimate}>about {estimatedMinutes} min</p>
+      {restingLabel && <p className={styles.restingLabel}>😴 {restingLabel}</p>}
       {supplyNote && <p className={styles.supplyNote}>🧴 {supplyNote}</p>}
 
       <div className={styles.doneWrap}>

@@ -22,7 +22,7 @@ import {
   type SessionTimer,
   type Task,
 } from "@/lib/api";
-import { roomTone } from "@/lib/decay";
+import { roomTone, snoozedLabel } from "@/lib/decay";
 import { supplyNote } from "@/lib/supplies";
 import { Button, Card, Confetti, FocusCard } from "@/components/ui";
 import styles from "./session.module.css";
@@ -442,6 +442,13 @@ function SessionScreen() {
             missionLabel={
               mode !== "zone" && current.task_type === "zone" && current.zone_name
                 ? `🧭 This week’s ${current.zone_name} mission`
+                : undefined
+            }
+            // Surfaced only because nothing else needs doing (Issue #8);
+            // still snoozed, so say so rather than pretending otherwise.
+            restingLabel={
+              current.is_snoozed && current.snoozed_until
+                ? snoozedLabel(current.snoozed_until)
                 : undefined
             }
             current={index + 1}

@@ -26,7 +26,7 @@ import {
   type Task,
   type Zone,
 } from "@/lib/api";
-import { roomTone } from "@/lib/decay";
+import { roomTone, snoozedLabel } from "@/lib/decay";
 import { friendlyDate, toLocalDateValue } from "@/lib/dates";
 import { supplyNote } from "@/lib/supplies";
 import { NAV_ITEMS } from "@/lib/nav";
@@ -347,6 +347,13 @@ function HomeScreen({ firstName }: { firstName: string }) {
                     )}
                   </div>
                   <p className={styles.taskMeta}>about {task.estimated_minutes} min</p>
+                  {/* Surfaced only because nothing else needs doing
+                      (Issue #8) — still resting, so the card says so. */}
+                  {task.is_snoozed && task.snoozed_until && (
+                    <p className={styles.taskMeta}>
+                      😴 {snoozedLabel(task.snoozed_until)}
+                    </p>
+                  )}
                   {supplyNote(task) && (
                     <p className={styles.supplyNote}>🧴 {supplyNote(task)}</p>
                   )}

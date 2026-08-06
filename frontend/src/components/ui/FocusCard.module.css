@@ -44,6 +44,15 @@
   font-size: var(--text-base);
 }
 
+/* A resting task surfaced with nothing else left (Issue #8): a quiet
+   fact in muted ink, same voice as the Phase 11 waiting state — never a
+   nag that it's still snoozed. */
+.restingLabel {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
 /* The inline "you're low on X" flag — informative, never alarming. */
 .supplyNote {
   margin: calc(-1 * var(--space-2)) 0 var(--space-3);
