@@ -106,5 +106,5 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--color-coral);
+  border-color: var(--color-purple);
 }

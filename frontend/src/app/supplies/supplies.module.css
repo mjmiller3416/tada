@@ -32,7 +32,7 @@
 }
 
 .input:focus-visible {
-  outline: 3px solid var(--color-coral);
+  outline: 3px solid var(--color-purple);
   outline-offset: 1px;
 }
 

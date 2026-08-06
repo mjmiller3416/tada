@@ -27,15 +27,15 @@ const NAV_ITEMS = [
 ];
 
 const SWATCHES: { name: string; varName: string }[] = [
-  { name: "Coral (go)", varName: "--color-coral" },
-  { name: "Coral strong", varName: "--color-coral-strong" },
-  { name: "Coral soft", varName: "--color-coral-soft" },
+  { name: "Purple (go / celebrate)", varName: "--color-purple" },
+  { name: "Purple strong", varName: "--color-purple-strong" },
+  { name: "Purple soft", varName: "--color-purple-soft" },
   { name: "Teal (done)", varName: "--color-teal" },
   { name: "Teal strong", varName: "--color-teal-strong" },
   { name: "Teal soft", varName: "--color-teal-soft" },
-  { name: "Purple (celebrate)", varName: "--color-purple" },
-  { name: "Purple strong", varName: "--color-purple-strong" },
-  { name: "Purple soft", varName: "--color-purple-soft" },
+  { name: "Coral (rare accent)", varName: "--color-coral" },
+  { name: "Coral strong", varName: "--color-coral-strong" },
+  { name: "Coral soft", varName: "--color-coral-soft" },
   { name: "Background", varName: "--color-bg" },
   { name: "Surface", varName: "--color-surface" },
   { name: "Ink", varName: "--color-ink" },

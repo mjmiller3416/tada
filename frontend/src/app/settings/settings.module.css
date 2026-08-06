@@ -67,7 +67,7 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--color-coral);
+  border-color: var(--color-purple);
 }
 
 /* ---- Zone editor (the FlyLady overlay's mapping UI) ---- */
@@ -107,7 +107,7 @@
   padding: var(--space-1) var(--space-2);
   font: inherit;
   font-size: var(--text-sm);
-  color: var(--color-coral);
+  color: var(--color-purple);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }

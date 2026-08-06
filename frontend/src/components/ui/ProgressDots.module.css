@@ -21,6 +21,6 @@
 
 /* The one on screen right now. */
 .current {
-  background: var(--color-coral);
+  background: var(--color-purple);
   transform: scale(1.4);
 }

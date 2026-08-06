@@ -9,20 +9,22 @@
 
 :root {
   /* ---- Palette: the anchor triad ----
-   * Coral, teal, and purple sit ~evenly around the color wheel and each
-   * owns one job: coral = go (primary actions), teal = done (success),
-   * purple = celebrate (badges, streaks, confetti, overlay accents).
+   * Purple, teal, and coral sit ~evenly around the color wheel and each
+   * owns one job: purple = go (primary actions) + celebrate (badges,
+   * streaks, confetti, overlay accents), teal = done (success). Coral
+   * stepped back from primary duty in the issue #5 repaint — it's now a
+   * rare warm accent (countdown urgency, confetti variety) only.
    * Every other hue in the app bridges two anchors — see the chip tints.
    */
-  --color-coral: #e15b54;        /* rose coral — primary action, the "go" color */
-  --color-coral-strong: #c14840; /* hover / pressed */
-  --color-coral-soft: #fbe4e1;   /* soft coral tint for backgrounds */
-  --color-teal: #1d9e75;         /* success / Done */
-  --color-teal-strong: #17855f;
-  --color-teal-soft: #dcf2e9;
-  --color-purple: #7e57b2;       /* wisteria — celebration & reward moments */
-  --color-purple-strong: #684793;
-  --color-purple-soft: #efe9f8;
+  --color-purple: #8354c9;        /* amethyst — primary action, the "go" color, plus celebration */
+  --color-purple-strong: #6c3fac; /* hover / pressed */
+  --color-purple-soft: #f1e8fb;   /* soft purple tint for backgrounds, badges */
+  --color-teal: #17a893;          /* success / Done */
+  --color-teal-strong: #128a76;
+  --color-teal-soft: #d9f4ee;
+  --color-coral: #e15b54;         /* rose coral — rare warm accent now (urgency, confetti) */
+  --color-coral-strong: #c14840;
+  --color-coral-soft: #fbe4e1;
 
   /* ---- Palette: warm neutrals (peach-cream — bridges coral and purple) ---- */
   --color-bg: #fcf5f0;           /* warm rosy-cream page background */
@@ -127,7 +129,7 @@ button {
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-coral);
+  outline: 3px solid var(--color-purple);
   outline-offset: 2px;
 }
 

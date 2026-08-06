@@ -46,7 +46,7 @@
 }
 
 .templateTile:hover {
-  border-color: var(--color-coral);
+  border-color: var(--color-purple);
 }
 
 .templateEmoji {

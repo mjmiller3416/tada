@@ -69,7 +69,7 @@
 
 .typeButton:active {
   transform: scale(0.96);
-  border-color: var(--color-coral);
+  border-color: var(--color-purple);
 }
 
 .typeIcon {
@@ -101,7 +101,7 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--color-coral);
+  border-color: var(--color-purple);
 }
 
 .toggleList {

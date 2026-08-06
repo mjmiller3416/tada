@@ -195,8 +195,9 @@ It's a cleaning *coach*, not a to-do list. Picking a room or zone launches the s
 
 ### Visual direction — bright, playful, but not busy
 
-- **Primary action color: coral** (`#D85A30`). The main "go" button (e.g. "I have 15 minutes").
-- **Success / Done: teal-green** (`#1D9E75`).
+- **Primary action color: purple** (`#8354C9`, "amethyst"). The main "go" button (e.g. "I have 15 minutes"). Purple also owns celebration — badges, streaks, confetti, overlay accents.
+- **Success / Done: teal-green** (`#17A893`).
+- **Coral** (`#E15B54`) is a rare warm accent — countdown urgency, confetti variety — not a primary or interactive color. (Changed from coral-as-primary in the issue #5 repaint, 2026-08.)
 - **Category / shortcut chips:** soft, cheerful color-coded tints (light blue, purple, green, amber). Colorful and inviting, but restrained enough that the UI itself never adds to the overwhelm.
 - Rounded, friendly shapes: cards ~12px radius, buttons ~14px, pills fully rounded. Generous whitespace. A friendly rounded sans-serif. Two font weights only.
 - **Large touch targets, one-handed phone use, minimal typing on the phone.** Heavy input (adding tasks, editing schedules) is a Chromebook activity.
@@ -291,4 +292,4 @@ Build one phase at a time; verify each works before starting the next. Detailed 
 - **Additive migrations.** Build the schema to anticipate later phases so migrations don't require rework.
 - **At the end of each phase, summarize what was built** — files created/changed and how to run/verify it.
 - **Design system first (Phase 0.5).** Define the §5 tokens (palette, type, spacing, radii, motion) as the single source of truth — CSS variables or theme config — and build the core React primitives that consume them (Button, Card, Chip, focus/task card, app shell, celebration). Every later phase composes these primitives and adds new components only from the same tokens, so the look stays cohesive across all phases.
-- Match the design system in §5 precisely: the focus-session interaction, the coral/teal palette, rounded friendly shapes, warm no-guilt copy, and badges-not-levels.
+- Match the design system in §5 precisely: the focus-session interaction, the purple/teal palette, rounded friendly shapes, warm no-guilt copy, and badges-not-levels.

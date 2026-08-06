@@ -47,13 +47,13 @@
 /* ---- Variants ---- */
 
 .primary {
-  background: var(--color-coral);
+  background: var(--color-purple);
   color: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--color-coral-strong);
+  background: var(--color-purple-strong);
 }
 
 .success {

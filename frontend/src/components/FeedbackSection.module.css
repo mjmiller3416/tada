@@ -59,9 +59,9 @@
 }
 
 .selected {
-  border-color: var(--color-coral);
-  background: var(--color-coral-soft);
-  color: var(--color-coral-strong);
+  border-color: var(--color-purple);
+  background: var(--color-purple-soft);
+  color: var(--color-purple-strong);
 }
 
 .textarea {
@@ -79,5 +79,5 @@
 
 .textarea:focus {
   outline: none;
-  border-color: var(--color-coral);
+  border-color: var(--color-purple);
 }
