@@ -217,7 +217,11 @@ def candidate_tasks(
     Maintenance stays in its own section (SPEC §6): the filter reads
     task_type (Phase 10 — category is deprecated), and admitting every
     non-maintenance type keeps this surface byte-identical to the old
-    single-universe behavior until Phase 11's composer takes over."""
+    single-universe behavior until Phase 11's composer takes over.
+
+    Snoozed ("resting") tasks surface too once nothing un-snoozed is left
+    (see `_doing_eligible`) — still flagged `is_snoozed`, so the surface
+    shows what's left without waking anything early."""
     now = now or _utcnow()
     query = (
         select(Task)
@@ -245,12 +249,7 @@ def candidate_tasks(
         query = query.where(Task.effort == effort)
 
     tasks = list(db.scalars(query).all())
-    eligible = [
-        t
-        for t in tasks
-        if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
-    ]
-    return rank_tasks(eligible, now, tz)
+    return rank_tasks(_doing_eligible(tasks, now), now, tz)
 
 
 # ---------------------------------------------------------------------------
@@ -265,13 +264,27 @@ def candidate_tasks(
 # ---------------------------------------------------------------------------
 
 def _doing_eligible(tasks: list[Task], now: datetime) -> list[Task]:
-    """The doing-surface gate every automatic lane shares: un-snoozed and
-    non-fresh (ratio >= BAND_AGING) — the app guides toward what actually
-    needs doing, and celebrates when nothing does."""
-    return [
+    """The doing-surface gate every automatic lane shares: non-fresh
+    (ratio >= BAND_AGING) tasks that aren't resting (snoozed) — the app
+    guides toward what actually needs doing, and celebrates when nothing
+    does.
+
+    Resting tasks stay excluded while any other non-fresh task remains;
+    once those are all caught up, resting tasks surface too so she can
+    see what's left, still flagged `is_snoozed` — surfacing them is a
+    visibility change only, never an early wake (SPEC §6 decay-aware
+    snooze: it defers the reminder, not the task)."""
+    non_resting = [
         t
         for t in tasks
         if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
+    ]
+    if non_resting:
+        return non_resting
+    return [
+        t
+        for t in tasks
+        if is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
     ]
 
 
@@ -637,19 +650,24 @@ def chores_for_user(
     gate as every doing-surface applies, so a chore disappears once done
     and quietly returns when it needs doing again — same decay engine, no
     separate chore system. Assignment is explicit, so category isn't
-    filtered here (an assigned maintenance job is still a chore)."""
+    filtered here (an assigned maintenance job is still a chore).
+
+    Each list applies the shared resting fallback (`_doing_eligible`)
+    independently, so a resting chore surfaces once the rest of THAT list
+    is caught up, without being crowded out by activity in the other."""
     now = now or _utcnow()
     tasks = db.scalars(
         select(Task).options(joinedload(Task.room)).where(Task.is_active.is_(True))
     ).all()
-    eligible = [
-        t
-        for t in tasks
-        if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
-    ]
-    mine = rank_tasks([t for t in eligible if t.assignee_id == user_id], now, tz)
+    mine = rank_tasks(
+        _doing_eligible([t for t in tasks if t.assignee_id == user_id], now), now, tz
+    )
     up_for_grabs = rank_tasks(
-        [t for t in eligible if t.assignee_id is None and t.claimable], now, tz
+        _doing_eligible(
+            [t for t in tasks if t.assignee_id is None and t.claimable], now
+        ),
+        now,
+        tz,
     )
     return mine, up_for_grabs
 

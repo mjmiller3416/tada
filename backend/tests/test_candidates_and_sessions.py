@@ -14,6 +14,7 @@ from app.services.scheduling import (
     MAX_SESSION_TASKS,
     build_session,
     candidate_tasks,
+    is_snoozed,
 )
 
 NOW = datetime(2026, 7, 1, 12, 0, 0, tzinfo=timezone.utc)
@@ -75,6 +76,45 @@ class TestFreshnessGate:
         # task_type (category is deprecated and no longer written).
         furnace = add_task(name="furnace filter", task_type="maintenance")
         assert furnace not in candidate_tasks(db, now=NOW)
+
+
+class TestRestingFallback:
+    """Issue #8: a resting (snoozed) task stays hidden while other work
+    remains, but surfaces — still flagged snoozed — once everything else
+    is caught up, so she can see what's left instead of a false "done"."""
+
+    def test_resting_task_surfaces_once_nothing_else_is_eligible(self, db, add_task):
+        resting = add_task(name="resting", snoozed_until=NOW + timedelta(hours=1))
+        result = candidate_tasks(db, now=NOW)
+        assert resting in result
+        assert result[0].is_active  # sanity: still a real, active task
+
+    def test_resting_task_stays_hidden_while_other_work_remains(self, db, add_task):
+        resting = add_task(name="resting", snoozed_until=NOW + timedelta(hours=1))
+        other = add_task(name="other")
+        result = candidate_tasks(db, now=NOW)
+        assert other in result
+        assert resting not in result
+
+    def test_surfaced_resting_task_keeps_its_snooze(self, db, add_task):
+        # Surfacing is a visibility change only — never an early wake.
+        until = NOW + timedelta(hours=1)
+        resting = add_task(name="resting", snoozed_until=until)
+        result = candidate_tasks(db, now=NOW)
+        assert resting in result
+        assert resting.snoozed_until == until
+        assert is_snoozed(resting, NOW) is True
+
+    def test_fresh_resting_tasks_never_surface(self, db, add_task):
+        # A resting task that isn't due yet still isn't "what's left" —
+        # the freshness gate applies to the fallback too.
+        fresh_resting = add_task(
+            name="fresh resting",
+            cadence_days=100,
+            last_done_at=days_ago(1),
+            snoozed_until=NOW + timedelta(hours=1),
+        )
+        assert fresh_resting not in candidate_tasks(db, now=NOW)
 
 
 class TestLensFilters:
