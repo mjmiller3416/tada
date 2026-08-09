@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -21,6 +23,8 @@ from app.services import campaigns as campaign_service
 from app.services import reminder_service, scheduling, settings_service
 from app.services import zones as zone_service
 from app.services.push_service import notify_owners
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -246,11 +250,17 @@ def complete_task(
 
     if current_user.role == "kid":
         # After the commit, so the completion is durable no matter what
-        # the push service does. Positive-only copy — this is a brag, not
-        # an audit (SPEC §5/§6: notification, no gamification).
-        first_name = current_user.name.split()[0]
-        where = f" in the {task.room.name.lower()}" if task.room else ""
-        notify_owners(db, "Ta-da! 🎉", f"{first_name} just checked off {task.name}{where}.")
+        # the push service does — and shielded, so a push-layer failure
+        # can never turn an already-committed completion into a 500 that
+        # makes the kid retap and double-log (issue #24). Positive-only
+        # copy — this is a brag, not an audit (SPEC §5/§6).
+        try:
+            first_name = current_user.name.split()[0]
+            where = f" in the {task.room.name.lower()}" if task.room else ""
+            notify_owners(db, "Ta-da! 🎉", f"{first_name} just checked off {task.name}{where}.")
+        except Exception:
+            logger.exception("Owner notification failed after completion %d", completion_id)
+            db.rollback()  # leave the session usable for the refresh below
 
     db.refresh(task)
     return CompleteResponse(

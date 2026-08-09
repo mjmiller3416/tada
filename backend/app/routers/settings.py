@@ -61,8 +61,14 @@ def update_settings(
             db, current_user.id, zone_service.local_today(db, current_user.id)
         )
 
+    before = settings_service.get_settings(db, current_user.id)
     values = settings_service.set_settings(db, current_user.id, updates)
-    # Nudge schedule follows the settings immediately.
-    reminder_service.sync_daily_nudge(db, current_user)
+    # Re-sync the nudge only when its inputs actually changed. The sync
+    # always recomputes scheduled_for strictly-after-now, so running it
+    # on every save meant toggling ANY setting inside the nudge's due
+    # window silently swallowed that day's nudge (issue #24). Compare
+    # values, not payload keys — the settings form sends every field.
+    if any(values[key] != before[key] for key in ("daily_nudge_time", "timezone")):
+        reminder_service.sync_daily_nudge(db, current_user)
     db.commit()
     return _to_read(values)

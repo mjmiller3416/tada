@@ -11,6 +11,21 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
+#: How long the push service may queue an undelivered notification, in
+#: seconds. pywebpush's default is ttl=0 — "deliver this instant or
+#: discard" — which silently dropped every push sent while her phone was
+#: dozing (issue #35). Six hours covers a one-shot reminder's useful
+#: life; time-critical sends pass their own (the cron's session timer
+#: and end-of-day-bounded daily nudge).
+DEFAULT_TTL = 6 * 60 * 60
+
+#: Seconds before giving up on the push service's HTTP endpoint. Without
+#: it the underlying requests.post can wait forever — hanging a kid's
+#: completion request, or stalling an entire cron run on one bad
+#: endpoint (issue #24). The MealGenie and GitHub clients already set
+#: explicit timeouts; this brings the third outbound client in line.
+SEND_TIMEOUT = 10
+
 
 def send_push(
     subscription: PushSubscription,
@@ -18,6 +33,7 @@ def send_push(
     body: str,
     db: Session,
     tag: str | None = None,
+    ttl: int = DEFAULT_TTL,
 ) -> bool:
     """Sends one Web Push notification. Returns False (and removes the
     subscription) if the push service reports it's gone/expired, which is
@@ -25,7 +41,17 @@ def send_push(
 
     `tag` rides the payload for the service worker's showNotification:
     notifications sharing a tag replace each other instead of stacking
-    (used by the daily nudge)."""
+    (used by the daily nudge).
+
+    Every send carries `Urgency: high` — all Tada pushes are user-facing
+    notifications, and normal urgency lets Android defer them while the
+    phone dozes, which combined with a short TTL means they never arrive
+    at all (issue #35).
+
+    Never raises: a push is always best-effort, and no caller — a kid's
+    completion request, the cron loop — should ever fail because the
+    push layer did (issue #24).
+    """
     subscription_info = {
         "endpoint": subscription.endpoint,
         "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
@@ -41,6 +67,9 @@ def send_push(
             data=json.dumps(payload),
             vapid_private_key=settings.vapid_private_key,
             vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
+            ttl=ttl,
+            timeout=SEND_TIMEOUT,
+            headers={"Urgency": "high"},
         )
         return True
     except WebPushException as exc:
@@ -52,10 +81,21 @@ def send_push(
         else:
             logger.error("Push send failed: %s", exc)
         return False
+    except Exception:
+        # pywebpush/py-vapid raise plain ValueErrors for malformed or
+        # empty VAPID keys, and requests has its own network errors —
+        # none of them may escape into the caller.
+        logger.exception("Push send failed for subscription %s", subscription.id)
+        return False
 
 
 def push_to_user(
-    db: Session, user_id: int, title: str, body: str, tag: str | None = None
+    db: Session,
+    user_id: int,
+    title: str,
+    body: str,
+    tag: str | None = None,
+    ttl: int = DEFAULT_TTL,
 ) -> int:
     """Push to every subscription (phone + Chromebook) a user has.
     Returns how many sends succeeded."""
@@ -65,7 +105,7 @@ def push_to_user(
     return sum(
         1
         for subscription in subscriptions
-        if send_push(subscription, title=title, body=body, db=db, tag=tag)
+        if send_push(subscription, title=title, body=body, db=db, tag=tag, ttl=ttl)
     )
 
 
