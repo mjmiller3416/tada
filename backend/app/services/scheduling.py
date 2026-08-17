@@ -639,6 +639,57 @@ def build_session(
     return _greedy_fill(candidates, minutes)
 
 
+def next_task_for_scope(
+    db: Session,
+    *,
+    for_user_id: int,
+    room_id: int | None = None,
+    effort: str | None = None,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> Task | None:
+    """The single highest-priority task for a scope — the head of the very
+    ranking every doing-surface uses (docs/hearth-integration.md gap #4:
+    the Hearth wall shows ONE task at a time, SPEC D4). `room_id` scopes to
+    a room (None = whole house); `for_user_id` is the acting adult, so her
+    own and unassigned work surfaces while tasks delegated to someone else
+    stay out.
+
+    Dispatches exactly like routers/sessions.py, so Hearth's "next" is
+    what the app itself would surface: with the Phase 11 lanes active, the
+    composer path (out-of-window zone missions are never offered as debt);
+    otherwise the legacy single-universe candidate path. Returns None when
+    nothing is due — the calm rest state the wall shows instead of
+    inventing work."""
+    from app.services import settings_service
+
+    now = now or _utcnow()
+    if settings_service.lanes_active(db, for_user_id):
+        if room_id is not None:
+            tasks = compose_session(
+                db,
+                for_user_id=for_user_id,
+                room_id=room_id,
+                effort=effort,
+                now=now,
+                tz=tz,
+            )
+        else:
+            tasks = compose_focus(
+                db, limit=1, for_user_id=for_user_id, effort=effort, now=now, tz=tz
+            )
+    else:
+        tasks = build_session(
+            db,
+            for_user_id=for_user_id,
+            room_id=room_id,
+            effort=effort,
+            now=now,
+            tz=tz,
+        )
+    return tasks[0] if tasks else None
+
+
 def chores_for_user(
     db: Session, user_id: int, now: datetime | None = None, tz: tzinfo | None = None
 ) -> tuple[list[Task], list[Task]]:

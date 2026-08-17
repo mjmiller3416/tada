@@ -1,3 +1,5 @@
+import hmac
+
 import bcrypt
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
@@ -32,3 +34,17 @@ def read_session_token(token: str) -> int | None:
     except (BadSignature, SignatureExpired):
         return None
     return data.get("user_id")
+
+
+def verify_device_token(presented: str) -> bool:
+    """Whether `presented` matches the configured Hearth device token
+    (docs/hearth-integration.md gap #1). Unlike the session cookie this
+    authorizes the DEVICE, not a user — the acting household member is
+    named per-request. Compared in constant time so a wrong token can't
+    be recovered by timing. Returns False when the integration is
+    disabled (no token set), so an unconfigured backend can never be
+    unlocked by sending an empty bearer."""
+    configured = settings.hearth_device_token
+    if not configured:
+        return False
+    return hmac.compare_digest(presented, configured)

@@ -38,5 +38,15 @@ class Settings(BaseSettings):
     github_token: str = ""
     github_repo: str = ""
 
+    # Hearth integration (docs/hearth-integration.md): the static device
+    # token the Hearth wall presents as `Authorization: Bearer <token>`
+    # on the /api/hearth router. It authorizes the DEVICE, not a user —
+    # the acting household member rides in each request body/query. It
+    # must EQUAL the TADA_DEVICE_TOKEN env var on Hearth's Railway
+    # service. Leave empty to disable the integration entirely (every
+    # /api/hearth route then returns 503). Needed by the "backend"
+    # service only.
+    hearth_device_token: str = ""
+
 
 settings = Settings()

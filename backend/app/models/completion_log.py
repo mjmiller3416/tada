@@ -23,7 +23,9 @@ class CompletionLog(Base):
     completed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-    # "focus_session" | "direct" | "guest_mode" | "zone" | "campaign"
+    # "focus_session" | "direct" | "guest_mode" | "zone" | "campaign" |
+    # "hearth" (the Hearth wall — docs/hearth-integration.md). String(20)
+    # already fits every value, so new sources need no migration.
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="direct")
     # The task's last_done_at as it stood when this completion overwrote
     # it (Phase 9): the exact value undo restores. NULL = a first-ever

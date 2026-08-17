@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -19,12 +17,7 @@ from app.schemas.tasks import (
     TaskUpdate,
     task_to_read,
 )
-from app.services import campaigns as campaign_service
-from app.services import reminder_service, scheduling, settings_service
-from app.services import zones as zone_service
-from app.services.push_service import notify_owners
-
-logger = logging.getLogger(__name__)
+from app.services import completion, reminder_service, scheduling, settings_service
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -210,17 +203,6 @@ def delete_task(
     db.commit()
 
 
-def _can_complete(task: Task, user: User) -> bool:
-    """The owner can complete anything. A kid can check off their own
-    chores, or an unassigned one that was left open to claim (SPEC §6:
-    'see their assigned/claimable chores and check them off')."""
-    if user.role == "owner":
-        return True
-    if task.assignee_id == user.id:
-        return True
-    return task.claimable and task.assignee_id is None
-
-
 @router.post("/{task_id}/complete", response_model=CompleteResponse)
 def complete_task(
     task_id: int,
@@ -231,36 +213,20 @@ def complete_task(
     """Done! Resets the decay curve and writes the CompletionLog (SPEC §4).
     Any pending snooze reminder is dropped so she's never nudged about
     finished work. A kid's completion notifies the owner (SPEC §6). The
-    log row's id rides back so a mis-tap can be undone (Phase 9)."""
+    log row's id rides back so a mis-tap can be undone (Phase 9).
+
+    The completion side-effects (campaign tick, decay reset, reminder
+    clear, owner brag) live in services/completion.py so every completion
+    path — here, and the Hearth wall — behaves identically."""
     task = _get_task(db, task_id)
-    if not _can_complete(task, current_user):
+    if not completion.can_complete(task, current_user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "That one isn't yours to check off")
 
-    # Whatever the lens, a running campaign that lists this task gets to
-    # tick it off — progress is progress (SPEC §6, Phase 3). Marked
-    # BEFORE complete_task so the Phase 5 badge check sees a campaign
-    # this completion just finished.
-    campaign_service.mark_done_in_running_campaigns(
-        db, task.id, zone_service.local_today(db, current_user.id)
-    )
-    log = scheduling.complete_task(db, task, current_user, payload.source)
-    completion_id = log.id  # read pre-commit; the object expires after
-    reminder_service.clear_task_reminders(db, task.id)
+    completion_id = completion.record_completion(db, task, current_user, payload.source)
     db.commit()
-
-    if current_user.role == "kid":
-        # After the commit, so the completion is durable no matter what
-        # the push service does — and shielded, so a push-layer failure
-        # can never turn an already-committed completion into a 500 that
-        # makes the kid retap and double-log (issue #24). Positive-only
-        # copy — this is a brag, not an audit (SPEC §5/§6).
-        try:
-            first_name = current_user.name.split()[0]
-            where = f" in the {task.room.name.lower()}" if task.room else ""
-            notify_owners(db, "Ta-da! 🎉", f"{first_name} just checked off {task.name}{where}.")
-        except Exception:
-            logger.exception("Owner notification failed after completion %d", completion_id)
-            db.rollback()  # leave the session usable for the refresh below
+    # After the commit, so the completion is durable no matter what the
+    # push service does; shielded inside the helper (issue #24).
+    completion.notify_owner_if_kid(db, current_user, task, completion_id)
 
     db.refresh(task)
     return CompleteResponse(

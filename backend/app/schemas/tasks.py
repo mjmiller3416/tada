@@ -12,6 +12,13 @@ Effort = Literal["quick", "deep"]
 # column is deprecated and no longer read or meaningfully written.
 Category = Literal["cleaning", "maintenance"]
 TaskType = Literal["routine", "weekly_blessing", "zone", "maintenance", "project"]
+# Where a completion came from — recorded on the CompletionLog so history
+# can tell a focus session from a zone week from a campaign (SPEC §3).
+# "hearth" is the Hearth wall (docs/hearth-integration.md gap #2); the
+# String(20) column already fits it, so adding it needs no migration.
+Source = Literal[
+    "focus_session", "direct", "guest_mode", "zone", "campaign", "hearth"
+]
 
 
 class SupplyBrief(BaseModel):
@@ -165,9 +172,7 @@ def task_to_read(
 class CompleteRequest(BaseModel):
     # The Phase 3 lenses log their own source so history can tell a
     # chaos clean from a zone week from a campaign (SPEC §3).
-    source: Literal["focus_session", "direct", "guest_mode", "zone", "campaign"] = (
-        "direct"
-    )
+    source: Source = "direct"
 
 
 class CompleteResponse(TaskRead):
