@@ -10,7 +10,7 @@
 
 **The core philosophy — three ideas that drive every decision:**
 
-1. **Decay, not a calendar.** Tasks don't have fixed due dates. Each task slowly gets "dirtier" over time based on how long since it was actually last done. Cleaning resets it. Priority is a gradient, not a binary overdue flag.
+1. **Decay, not a calendar.** Tasks don't have fixed due dates. Each task slowly gets "dirtier" over time based on how long since it was actually last done. Cleaning resets it. Priority is a gradient, not a binary overdue flag. *(One deliberate exception: weekly-cadence **kid chores** reset on a fixed Monday — see the multi-user chores note in the phase map. The decay engine everywhere else is untouched.)*
 2. **Guide, don't list.** The owner knows *what* needs doing — being shown a long list is what causes paralysis ("I don't even know where to start"). On the phone, the app hands her **one task at a time**, never a wall. Lists exist only on the Chromebook, where she's *planning*, not *doing*.
 3. **Bright, warm, forgiving.** Cheerful and encouraging, celebration in the small moments, and never guilt-inducing. Missing a day or snoozing a task is fine and is never punished.
 
@@ -240,6 +240,8 @@ The distinction matters since Phase 6: **MealGenie's list is the ongoing repleni
 **Lists (Phase 4 as packing, generalized in Phase 6).** General-purpose one-off checklists — packing, shopping (school supplies, Christmas and birthday gifts), and plain to-do lists — in their own module (`lists`, `list_sections`, `list_items`), deliberately apart from the cleaning core. A list's `kind` (`packing` / `shopping` / `tasks` / `custom`) drives small presentation differences only. Full grouped checklist UI with collapsible sections, never the focus flow; items may carry an optional price (Numeric, computed running totals, shown only once something is priced); **list items never surface on the daily focus home screen or in a focus session** — cleaning tasks recur and decay, list items are done once and gone.
 
 **Multi-user assign/claim (Phase 2).** Kids get their **own logins** (role `kid`) with **basic functionality**: see their assigned/claimable chores, check them off. **On completion, notify the owner** (via push). Tasks can be assigned to a member or left open to claim. **No rewards, points, or gamification for the kids' chores** — purely assignment + completion + notification.
+
+**Weekly chores reset every Monday.** On the kid chore surface only, a chore whose cadence is **weekly** (`cadence_days == 7`) resets on a fixed calendar week instead of rolling decay: it reappears every Monday in the member's local week and drops out the moment it's done that week, rather than resurfacing ~3.5 days after each completion. This is the one place the app steps off principle 1 (a predictable weekly checklist reads better for kids than decay drift). It lives entirely in `scheduling.chores_for_user` — every other surface, and every non-weekly chore, keeps plain decay. Migration `0012` did the one-time backdate that put existing weekly chores onto this cycle.
 
 **Maintenance tasks (Phase 2).** Same engine, `task_type = maintenance` (formerly `category`), long cadences (HVAC filters, smoke/CO batteries, gutters, descaling). Give them their own section/filter so they don't clutter daily cleaning.
 

@@ -81,6 +81,12 @@ SNOOZE_OFFSETS: dict[str, timedelta] = {
 #: the zone calendar and her explicit choice, respectively.
 RECURRING_TYPES = ("routine", "weekly_blessing", "maintenance")
 
+#: The "weekly" cadence tier (SPEC §6). The ONE place the app steps off
+#: "decay, not a calendar" (SPEC §1): a weekly-cadence chore on the kid
+#: chore surface resets on a fixed Monday rather than rolling decay — see
+#: chores_for_user. Everywhere else, cadence 7 is just a decay rate.
+WEEKLY_CADENCE_DAYS = 7
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -690,6 +696,46 @@ def next_task_for_scope(
     return tasks[0] if tasks else None
 
 
+def _local_week_start(now: datetime, tz: tzinfo | None) -> datetime:
+    """Monday 00:00 in the member's local timezone (aware) — the fixed
+    reset boundary for weekly chores. A chore done on or after it counts
+    as done for this week; anything before it is due again."""
+    local = now.astimezone(tz or timezone.utc)
+    midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight - timedelta(days=local.weekday())  # weekday(): Monday = 0
+
+
+def _chore_needs_doing(task: Task, now: datetime, week_start: datetime) -> bool:
+    """Whether a chore is currently to-do. A weekly-cadence chore runs on
+    the fixed Monday reset — not done since `week_start` means due, so it
+    reappears every Monday and drops out the moment it's done that week.
+    Every other chore uses the shared decay freshness gate."""
+    if task.cadence_days == WEEKLY_CADENCE_DAYS:
+        return task.last_done_at is None or _aware(task.last_done_at) < week_start
+    return dirtiness_ratio(task, now) >= BAND_AGING
+
+
+def _chores_eligible(
+    tasks: list[Task], now: datetime, week_start: datetime
+) -> list[Task]:
+    """The chore-surface gate: the same resting fallback as
+    `_doing_eligible` (snoozed chores surface only once nothing else is
+    left), but weekly chores reset on the calendar week rather than on
+    rolling decay (`_chore_needs_doing`)."""
+    ready = [
+        t
+        for t in tasks
+        if not is_snoozed(t, now) and _chore_needs_doing(t, now, week_start)
+    ]
+    if ready:
+        return ready
+    return [
+        t
+        for t in tasks
+        if is_snoozed(t, now) and _chore_needs_doing(t, now, week_start)
+    ]
+
+
 def chores_for_user(
     db: Session, user_id: int, now: datetime | None = None, tz: tzinfo | None = None
 ) -> tuple[list[Task], list[Task]]:
@@ -697,25 +743,37 @@ def chores_for_user(
     each priority-ranked.
 
     "My chores" = active tasks assigned to this member; "up for grabs" =
-    active unassigned tasks the owner marked claimable. The same non-fresh
-    gate as every doing-surface applies, so a chore disappears once done
-    and quietly returns when it needs doing again — same decay engine, no
-    separate chore system. Assignment is explicit, so category isn't
-    filtered here (an assigned maintenance job is still a chore).
+    active unassigned tasks the owner marked claimable. Assignment is
+    explicit, so category isn't filtered here (an assigned maintenance job
+    is still a chore).
 
-    Each list applies the shared resting fallback (`_doing_eligible`)
+    Weekly-cadence chores reset on a fixed Monday (`_chore_needs_doing`):
+    they reappear every Monday in the member's local week and drop out the
+    moment they're done that week, instead of resurfacing ~3.5 days after
+    each completion. Every other chore keeps the decay freshness gate, so
+    it disappears once done and quietly returns when it needs doing again —
+    same decay engine, no separate chore system.
+
+    Each list applies the shared resting fallback (`_chores_eligible`)
     independently, so a resting chore surfaces once the rest of THAT list
     is caught up, without being crowded out by activity in the other."""
     now = now or _utcnow()
+    week_start = _local_week_start(now, tz)
     tasks = db.scalars(
         select(Task).options(joinedload(Task.room)).where(Task.is_active.is_(True))
     ).all()
     mine = rank_tasks(
-        _doing_eligible([t for t in tasks if t.assignee_id == user_id], now), now, tz
+        _chores_eligible(
+            [t for t in tasks if t.assignee_id == user_id], now, week_start
+        ),
+        now,
+        tz,
     )
     up_for_grabs = rank_tasks(
-        _doing_eligible(
-            [t for t in tasks if t.assignee_id is None and t.claimable], now
+        _chores_eligible(
+            [t for t in tasks if t.assignee_id is None and t.claimable],
+            now,
+            week_start,
         ),
         now,
         tz,
