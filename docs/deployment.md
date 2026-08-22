@@ -113,7 +113,7 @@ Notes:
 - Leaving `MEALGENIE_API_URL`/`MEALGENIE_API_KEY` empty disables that integration
   without breaking anything else (supplies still track status locally).
 - `GITHUB_TOKEN` is a fine-grained PAT with Issues: write scoped to the one repo named
-  in `GITHUB_REPO` (e.g. `mjmiller3416/tada-cleaning-app`). Leaving either empty
+  in `GITHUB_REPO` (e.g. `mjmiller3416/tada`). Leaving either empty
   disables in-app feedback's GitHub issue creation (the Settings section still submits
   successfully; it just logs the report instead of filing an issue).
 
