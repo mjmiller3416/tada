@@ -221,8 +221,11 @@ def candidate_tasks(
     (SPEC §6).
 
     Maintenance stays in its own section (SPEC §6): the filter reads
-    task_type (Phase 10 — category is deprecated), and admitting every
-    non-maintenance type keeps this surface byte-identical to the old
+    task_type (Phase 10 — category is deprecated). Projects are excluded
+    too (issue #20): "project = manual only, NEVER automatic" holds on
+    every path, so a task reclassified to project during the Phase 11
+    review — while the lane flag is still off — never floods daily focus
+    at never-done priority. Every other type keeps the old
     single-universe behavior until Phase 11's composer takes over.
 
     Snoozed ("resting") tasks surface too once nothing un-snoozed is left
@@ -232,7 +235,10 @@ def candidate_tasks(
     query = (
         select(Task)
         .options(joinedload(Task.room))
-        .where(Task.is_active.is_(True), Task.task_type != "maintenance")
+        .where(
+            Task.is_active.is_(True),
+            Task.task_type.notin_(("maintenance", "project")),
+        )
     )
     if for_user_id is not None:
         query = query.where(
@@ -243,13 +249,15 @@ def candidate_tasks(
     if zone_id is not None:
         query = query.join(Task.room).where(Room.zone_id == zone_id)
     if guest_only:
-        # Routines only (Phase 11, SPEC §6): "wipe cabinet fronts" may be
-        # flagged guest-facing, but it's a zone mission, not a
-        # company-in-twenty-minutes task — and a project never is.
+        # Routines ONLY (Phase 11, SPEC §6) — not merely "no zone or
+        # project" (issue #22): "wipe cabinet fronts" may be flagged
+        # guest-facing, but a zone mission, a project, and a whole-home
+        # weekly blessing are all the wrong shape for a
+        # company-in-twenty-minutes punch list.
         query = query.where(
             Task.guest_facing.is_(True),
             Task.effort == "quick",
-            Task.task_type.notin_(("zone", "project")),
+            Task.task_type == "routine",
         )
     if effort in ("quick", "deep"):
         query = query.where(Task.effort == effort)
@@ -745,7 +753,10 @@ def chores_for_user(
     "My chores" = active tasks assigned to this member; "up for grabs" =
     active unassigned tasks the owner marked claimable. Assignment is
     explicit, so category isn't filtered here (an assigned maintenance job
-    is still a chore).
+    is still a chore) — but "up for grabs" is automatic surfacing, so
+    projects stay out of it (issue #22): "project = manual only, NEVER
+    automatic". Assigning a project to a kid IS the manual path, so an
+    assigned one still lands in "my chores".
 
     Weekly-cadence chores reset on a fixed Monday (`_chore_needs_doing`):
     they reappear every Monday in the member's local week and drop out the
@@ -771,7 +782,13 @@ def chores_for_user(
     )
     up_for_grabs = rank_tasks(
         _chores_eligible(
-            [t for t in tasks if t.assignee_id is None and t.claimable],
+            [
+                t
+                for t in tasks
+                if t.assignee_id is None
+                and t.claimable
+                and t.task_type != "project"
+            ],
             now,
             week_start,
         ),

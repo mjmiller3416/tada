@@ -9,6 +9,7 @@ The decay engine keeps driving everyday upkeep underneath, everywhere,
 regardless of the active zone.
 """
 
+import calendar
 from datetime import date, datetime, tzinfo
 
 from sqlalchemy import select
@@ -47,6 +48,12 @@ def local_today(db: Session, user_id: int) -> date:
     return datetime.now(settings_service.user_timezone(db, user_id)).date()
 
 
+#: How many of the month's final days clamp to week 5 when the raw
+#: Monday-week arithmetic never reaches it (issue #21) — zone 5's "the
+#: last few days", mirroring zone 1's "the first few days".
+ZONE_5_MIN_DAYS = 3
+
+
 def week_of_month(today: date) -> int:
     """Which FlyLady week this date falls in, 1..5.
 
@@ -54,9 +61,20 @@ def week_of_month(today: date) -> int:
     counts as week 1 — FlyLady's "the first few days of the month" —
     and anything past the fourth week clamps to 5, so the month's last
     few days always belong to zone 5 (zones 1 and 5 often share a
-    calendar week, per SPEC §6)."""
+    calendar week, per SPEC §6).
+
+    One month shape defeats the raw arithmetic: a 28-day February that
+    starts on a Monday packs into exactly four Monday–Sunday weeks, so
+    no day ever reaches week 5 and zone 5 would silently skip the month
+    (issue #21). When that happens, the month's last ZONE_5_MIN_DAYS
+    days clamp to week 5 — every other month shape already ends in week
+    5 naturally and is left byte-identical."""
     first_weekday = today.replace(day=1).weekday()  # Monday = 0
     week = (today.day + first_weekday - 1) // 7 + 1
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    last_week = (last_day + first_weekday - 1) // 7 + 1
+    if last_week < 5 and today.day > last_day - ZONE_5_MIN_DAYS:
+        return 5
     return min(week, 5)
 
 
