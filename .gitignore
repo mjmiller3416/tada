@@ -34,3 +34,9 @@ ds-bundle/
 Thumbs.db
 .vscode/
 .idea/
+
+# --- Personal one-off dumps (not part of the app) ---
+backend/scripts/dump-tasks.ps1
+backend/scripts/dump_tasks.py
+docs/tasks-dump.md
+docs/tasks-dump.pdf

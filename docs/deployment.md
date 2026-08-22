@@ -8,7 +8,7 @@
 
 ## 1. Railway project layout
 
-Everything lives in one Railway project, **`tada-cleaning-app`**, single environment
+Everything lives in one Railway project, **`tada`**, single environment
 **`production`**. Four services:
 
 | Service | What it runs | Config file |

@@ -1,7 +1,7 @@
 # Manually push a custom notification to a user's devices (wraps
 # scripts/send_note.py). Pulls the production credentials from Railway on
 # each run — nothing is stored locally. Requires the Railway CLI, logged in
-# and linked to the tada-cleaning-app project.
+# and linked to the tada project.
 #
 # Usage (from anywhere):
 #   .\scripts\send-note.ps1 "Title" "Body text"            # sends to Maryann
