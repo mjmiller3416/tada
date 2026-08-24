@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  afterPendingWrites,
   claimTask,
   completeTask,
   getChores,
   logout,
+  trackWrite,
   type ChoresResponse,
   type Task,
 } from "@/lib/api";
@@ -47,8 +49,9 @@ export default function KidHome({ firstName }: { firstName: string }) {
     setCelebratingId(task.id);
     // The write fires NOW (issue #11): a kid tapping Done then Log out
     // within the pop must still get their chore counted — the timer
-    // only paces the celebration and the reload.
-    const post = completeTask(task.id, "direct").catch(() => null);
+    // only paces the celebration and the reload. Tracked, so the
+    // logout below can order behind it.
+    const post = trackWrite(completeTask(task.id, "direct")).catch(() => null);
     timerRef.current = setTimeout(async () => {
       await post;
       setCelebratingId(null);
@@ -71,6 +74,9 @@ export default function KidHome({ firstName }: { firstName: string }) {
   }
 
   async function handleLogout() {
+    // Done then Log out mid-pop: the logout must not race ahead and
+    // invalidate the session before the completion lands (issue #11).
+    await afterPendingWrites();
     await logout().catch(() => {});
     router.replace("/login");
   }

@@ -79,9 +79,11 @@ def campaign_to_read(campaign: Campaign, today: date) -> CampaignRead:
 
 def campaign_to_detail(campaign: Campaign, today: date) -> CampaignDetail:
     base = campaign_to_read(campaign, today)
+    # The same rows progress counts (issue #28) — the header and the
+    # checklist under it must never disagree about what's left.
     entries = [
         CampaignTaskEntry(task=task_to_read(link.task), done=link.done)
-        for link in campaign.task_links
+        for link in campaign_service.live_links(campaign)
         if link.task is not None
     ]
     # Undone first (dirtiest leading), then the ticked-off tail.

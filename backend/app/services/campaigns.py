@@ -25,15 +25,23 @@ def is_running(campaign: Campaign, today: date) -> bool:
     return campaign.active and campaign.start_date <= today <= campaign.end_date
 
 
-def progress(campaign: Campaign) -> tuple[int, int]:
-    """(done, total) across the campaign's checklist. Archived tasks
-    drop out of BOTH counts (issue #15 review, issue #28): a task
-    archived mid-window can never be offered or completed again, so
-    counting it would pin the campaign below 100% forever with no way
-    to finish."""
+def live_links(campaign: Campaign) -> list[CampaignTask]:
+    """The checklist rows progress and the detail view count (issue
+    #28): archived tasks drop out — a task archived mid-window can never
+    be offered or completed again, so counting it would pin the campaign
+    below 100% forever. With every task archived, the full checklist is
+    the honest picture (a finished-then-retired campaign stays 100%,
+    never a hollow 0/0)."""
     live = [link for link in campaign.task_links if link.task.is_active]
-    done = sum(1 for link in live if link.done)
-    return done, len(live)
+    return live or list(campaign.task_links)
+
+
+def progress(campaign: Campaign) -> tuple[int, int]:
+    """(done, total) across the campaign's live checklist (see
+    live_links)."""
+    links = live_links(campaign)
+    done = sum(1 for link in links if link.done)
+    return done, len(links)
 
 
 def today_slice(
@@ -108,6 +116,9 @@ def untick_for_undone_completion(
         .where(
             CampaignTask.task_id == log.task_id,
             CampaignTask.done.is_(True),
+            # The mirror of mark_done_in_running_campaigns: only ticks a
+            # running campaign could have made are candidates to reverse.
+            Campaign.active.is_(True),
             Campaign.start_date <= undone_day,
             Campaign.end_date >= undone_day,
         )
@@ -116,9 +127,9 @@ def untick_for_undone_completion(
         return
 
     remaining_days = {
-        local_day(other.completed_at)
-        for other in db.scalars(
-            select(CompletionLog).where(
+        local_day(completed_at)
+        for completed_at in db.scalars(
+            select(CompletionLog.completed_at).where(
                 CompletionLog.task_id == log.task_id, CompletionLog.id != log.id
             )
         ).all()

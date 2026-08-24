@@ -254,10 +254,18 @@ def sync_countdown_reminder(
     One active reminder per list at most. The body stored here is a
     placeholder — the cron composes the real one at send time from the
     live unchecked count, so it's never stale. `days_before=None` means
-    "not chosen this time": the lead persisted on the existing reminder
-    wins (issue #19 — an unrelated edit must never quietly move her
-    14-day nudge to the default 3). Caller commits."""
-    existing = _get_countdown(db, parent_list.id)
+    "not chosen this time": the lead persisted on the list's most recent
+    reminder row wins — including a deactivated one, so toggling the
+    nudge off and back on keeps it too (issue #19 — nothing but an
+    explicit choice may move her 14-day nudge to the default 3). A
+    re-enable revives that row rather than adding another. Caller
+    commits."""
+    existing = _get_countdown(db, parent_list.id) or db.scalar(
+        select(Reminder)
+        .where(Reminder.list_id == parent_list.id)
+        .order_by(Reminder.id.desc())
+        .limit(1)
+    )
     if days_before is None:
         days_before = _persisted_days_before(existing)
     if days_before is None:
@@ -299,6 +307,7 @@ def sync_countdown_reminder(
         existing.scheduled_for = scheduled_for
         existing.last_sent_at = None
         existing.recurrence_rule = f"{COUNTDOWN_RULE}:{days_before}"
+        existing.active = True
 
 
 def advance_countdown_reminder(

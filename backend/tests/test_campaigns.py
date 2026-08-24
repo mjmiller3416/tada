@@ -92,3 +92,18 @@ class TestUndoUnticksTheCampaign:
         log = complete_task(db, task, owner, "direct", NOW)
         undo_completion(db, log, NOW)
         assert campaign.task_links[0].done is False
+
+
+class TestProgressWhenEverythingIsArchived:
+    def test_a_finished_then_retired_campaign_stays_100_percent(
+        self, db, make_task
+    ):
+        # All tasks done, then all archived: the full checklist is the
+        # honest picture — never a hollow 0/0 that renders as 0%.
+        tasks = [
+            _add_task(db, make_task, name=f"t{i}", is_active=False) for i in range(3)
+        ]
+        campaign = _add_campaign(db, [t.id for t in tasks])
+        for link in campaign.task_links:
+            link.done = True
+        assert campaign_service.progress(campaign) == (3, 3)

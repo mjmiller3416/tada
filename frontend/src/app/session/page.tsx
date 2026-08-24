@@ -279,9 +279,15 @@ function SessionScreen() {
         done ? undoCompletion(done.completion_id).catch(() => {}) : undefined,
       ),
     );
-    // Keep the session's own numbers honest.
-    setDoneCount((n) => Math.max(0, n - 1));
-    setDoneMinutes((m) => Math.max(0, m - last.task.estimated_minutes));
+    // Keep the session's own numbers honest — but only when the
+    // completion actually landed: a failed post is already subtracted
+    // by the failure handler in handleDone, and doing both would count
+    // one mis-tap twice (shorting badge credit for real work).
+    last.post.then((done) => {
+      if (done === null) return;
+      setDoneCount((n) => Math.max(0, n - 1));
+      setDoneMinutes((m) => Math.max(0, m - last.task.estimated_minutes));
+    });
     // She didn't actually do it — put it back at the end of the queue
     // so it returns live, without interrupting the current card. On the
     // complete screen the session stays finished; the task resurfaces

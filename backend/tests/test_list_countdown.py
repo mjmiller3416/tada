@@ -61,3 +61,20 @@ class TestCountdownLeadPersists:
         assert reminder.recurrence_rule == (
             f"list_countdown:{list_service.DEFAULT_REMINDER_DAYS_BEFORE}"
         )
+
+    def test_toggling_off_and_on_keeps_the_lead(self, db, owner):
+        # The UI's toggle sends only reminder_enabled — the lead must
+        # survive the round-trip via the deactivated row, which is
+        # revived rather than duplicated.
+        parent = _add_list(db)
+        list_service.sync_countdown_reminder(db, owner, parent, True, 14)
+        db.flush()
+        list_service.sync_countdown_reminder(db, owner, parent, False, None)
+        db.flush()
+        list_service.sync_countdown_reminder(db, owner, parent, True, None)
+        rows = db.scalars(
+            select(Reminder).where(Reminder.list_id == parent.id)
+        ).all()
+        assert len(rows) == 1
+        assert rows[0].active is True
+        assert rows[0].recurrence_rule == "list_countdown:14"
