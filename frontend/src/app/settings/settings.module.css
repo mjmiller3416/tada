@@ -97,6 +97,11 @@
 .zoneRow .input {
   flex: 1;
   max-width: none;
+  /* A text input refuses to flex-shrink below its intrinsic ~20-char
+     width unless told otherwise — without this, the ▸ missions button
+     pushes past the right edge and the whole page pans sideways on a
+     phone (issue #41). */
+  min-width: 0;
 }
 
 /* The quiet planning-path launcher for a zone's missions (Phase 11). */
