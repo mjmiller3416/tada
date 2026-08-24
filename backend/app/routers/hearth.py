@@ -267,6 +267,6 @@ def undo(
         scheduling.undo_completion(
             db, log, tz=settings_service.user_timezone(db, member.id)
         )
-    except scheduling.UndoWindowClosed as exc:
+    except (scheduling.UndoWindowClosed, scheduling.UndoNotLatest) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
     db.commit()
