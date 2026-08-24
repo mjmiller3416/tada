@@ -551,3 +551,76 @@ class TestWaitingState:
         assert window_zone_name(craft_bin, during) == "Bathroom"
         outside = presentation_context(db, owner.id, now=KITCHEN_WEEK)
         assert in_zone_window(craft_bin, outside) is False
+
+
+# ---------------------------------------------------------------------------
+# Issue #37/#14 — the home screen and the nudge never un-rest a task
+# ---------------------------------------------------------------------------
+
+class TestComposedFocusNeverShowsResting:
+    def test_compose_focus_is_empty_when_everything_eligible_is_resting(
+        self, db, add_task, owner, home, zones_on, lane_on
+    ):
+        # A rested routine and a rested current-zone mission: the home
+        # celebrates instead of resurfacing either (issue #37) — unlike
+        # sessions, where the issue-#8 fallback still applies.
+        add_task(
+            name="Do the dishes", room_id=home.kitchen.id,
+            snoozed_until=KITCHEN_WEEK + timedelta(hours=3),
+        )
+        add_task(
+            name="Clean the microwave", room_id=home.kitchen.id, task_type="zone",
+            snoozed_until=KITCHEN_WEEK + timedelta(hours=3),
+        )
+        assert compose_focus(db, limit=3, for_user_id=owner.id, now=KITCHEN_WEEK) == []
+
+    def test_a_rested_mission_never_takes_the_mission_slot(
+        self, db, add_task, owner, home, zones_on, lane_on
+    ):
+        routine = add_task(name="Do the dishes", room_id=home.kitchen.id)
+        add_task(
+            name="Clean the microwave", room_id=home.kitchen.id, task_type="zone",
+            snoozed_until=KITCHEN_WEEK + timedelta(hours=3),
+        )
+        cards = compose_focus(db, limit=3, for_user_id=owner.id, now=KITCHEN_WEEK)
+        assert cards == [routine]
+
+
+class TestDailyNudgeMirrorsHome:
+    """Issue #14: the push must be composed by the same path as the home
+    screen — composer when the lanes are active, legacy otherwise — and
+    must never name a resting task on either path (issue #37)."""
+
+    def test_nudge_routes_through_the_composer_when_lanes_are_active(
+        self, db, add_task, owner, home, zones_on, lane_on, monkeypatch
+    ):
+        from app.services import reminder_service, scheduling
+
+        seen = {}
+
+        def fake_compose_focus(db_, *, limit, for_user_id, effort=None, now=None, tz=None):
+            seen["called"] = True
+            return []
+
+        monkeypatch.setattr(scheduling, "compose_focus", fake_compose_focus)
+        title, body = reminder_service.compose_daily_nudge(db, owner)
+        assert seen.get("called") is True
+        assert "good shape" in body
+
+    def test_nudge_never_names_a_resting_task_on_the_legacy_path(
+        self, db, add_task, owner, monkeypatch
+    ):
+        from app.services import reminder_service
+
+        # Overdue but freshly rested (relative to the real clock the
+        # nudge composes with): the push says "in good shape", it does
+        # not name the task she asked to rest.
+        real_now = datetime.now(timezone.utc)
+        add_task(
+            name="Scrub the tub",
+            last_done_at=real_now - timedelta(days=14),
+            snoozed_until=real_now + timedelta(hours=3),
+        )
+        title, body = reminder_service.compose_daily_nudge(db, owner)
+        assert "Scrub the tub" not in body
+        assert "good shape" in body

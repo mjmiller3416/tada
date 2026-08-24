@@ -201,6 +201,7 @@ def candidate_tasks(
     effort: str | None = None,
     zone_id: int | None = None,
     guest_only: bool = False,
+    resting_fallback: bool = True,
     now: datetime | None = None,
     tz: tzinfo | None = None,
 ) -> list[Task]:
@@ -230,7 +231,9 @@ def candidate_tasks(
 
     Snoozed ("resting") tasks surface too once nothing un-snoozed is left
     (see `_doing_eligible`) — still flagged `is_snoozed`, so the surface
-    shows what's left without waking anything early."""
+    shows what's left without waking anything early. The home focus and
+    the daily nudge opt out via `resting_fallback=False` (issue #37):
+    on those surfaces a task she just rested must actually leave."""
     now = now or _utcnow()
     query = (
         select(Task)
@@ -263,7 +266,7 @@ def candidate_tasks(
         query = query.where(Task.effort == effort)
 
     tasks = list(db.scalars(query).all())
-    return rank_tasks(_doing_eligible(tasks, now), now, tz)
+    return rank_tasks(_doing_eligible(tasks, now, resting_fallback), now, tz)
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +280,9 @@ def candidate_tasks(
 # wired to surfaces by Phase 11's composer behind zone_lane_enabled.
 # ---------------------------------------------------------------------------
 
-def _doing_eligible(tasks: list[Task], now: datetime) -> list[Task]:
+def _doing_eligible(
+    tasks: list[Task], now: datetime, resting_fallback: bool = True
+) -> list[Task]:
     """The doing-surface gate every automatic lane shares: non-fresh
     (ratio >= BAND_AGING) tasks that aren't resting (snoozed) — the app
     guides toward what actually needs doing, and celebrates when nothing
@@ -287,13 +292,19 @@ def _doing_eligible(tasks: list[Task], now: datetime) -> list[Task]:
     once those are all caught up, resting tasks surface too so she can
     see what's left, still flagged `is_snoozed` — surfacing them is a
     visibility change only, never an early wake (SPEC §6 decay-aware
-    snooze: it defers the reminder, not the task)."""
+    snooze: it defers the reminder, not the task).
+
+    That fallback belongs to the surfaces where she ASKS for work (a
+    session's "I have X minutes"). With `resting_fallback=False` — the
+    home focus and the daily nudge (issue #37) — resting tasks never
+    surface: resting a task must visibly remove it, and an otherwise
+    caught-up home celebrates instead of un-resting her choices."""
     non_resting = [
         t
         for t in tasks
         if not is_snoozed(t, now) and dirtiness_ratio(t, now) >= BAND_AGING
     ]
-    if non_resting:
+    if non_resting or not resting_fallback:
         return non_resting
     return [
         t
@@ -309,6 +320,7 @@ def recurring_candidates(
     room_id: int | None = None,
     zone_id: int | None = None,
     effort: str | None = None,
+    resting_fallback: bool = True,
     now: datetime | None = None,
     tz: tzinfo | None = None,
 ) -> list[Task]:
@@ -336,7 +348,9 @@ def recurring_candidates(
         query = query.join(Task.room).where(Room.zone_id == zone_id)
     if effort in ("quick", "deep"):
         query = query.where(Task.effort == effort)
-    return rank_tasks(_doing_eligible(list(db.scalars(query).all()), now), now, tz)
+    return rank_tasks(
+        _doing_eligible(list(db.scalars(query).all()), now, resting_fallback), now, tz
+    )
 
 
 def zone_candidates(
@@ -345,6 +359,7 @@ def zone_candidates(
     for_user_id: int,
     zone_id: int | None = None,
     effort: str | None = None,
+    resting_fallback: bool = True,
     now: datetime | None = None,
     tz: tzinfo | None = None,
 ) -> list[Task]:
@@ -404,7 +419,9 @@ def zone_candidates(
     )
     if effort in ("quick", "deep"):
         query = query.where(Task.effort == effort)
-    return rank_tasks(_doing_eligible(list(db.scalars(query).all()), now), now, tz)
+    return rank_tasks(
+        _doing_eligible(list(db.scalars(query).all()), now, resting_fallback), now, tz
+    )
 
 
 def project_candidates(
@@ -443,9 +460,16 @@ def daily_focus(
 ) -> list[Task]:
     """The calm home screen (SPEC §6): the top `limit` tasks by priority —
     never a wall. An empty result means the home is genuinely in good
-    shape and the UI should say so warmly."""
+    shape and the UI should say so warmly. No resting fallback here
+    (issue #37): a task she rested leaves the home screen, full stop —
+    when everything else is caught up the home celebrates instead."""
     return candidate_tasks(
-        db, for_user_id=for_user_id, effort=effort, now=now, tz=tz
+        db,
+        for_user_id=for_user_id,
+        effort=effort,
+        resting_fallback=False,
+        now=now,
+        tz=tz,
     )[:limit]
 
 
@@ -491,13 +515,26 @@ def compose_focus(
     never an empty slot — and `limit` (daily_focus_count) still caps the
     total. The energy filter applies to BOTH pools: a five-minute task
     can still mean painful scrubbing, and low-energy days deserve
-    low-energy missions too."""
+    low-energy missions too. Like daily_focus, no resting fallback
+    (issue #37): rested work never reappears on the home screen."""
     now = now or _utcnow()
     cards = list(
-        recurring_candidates(db, for_user_id=for_user_id, effort=effort, now=now, tz=tz)
+        recurring_candidates(
+            db,
+            for_user_id=for_user_id,
+            effort=effort,
+            resting_fallback=False,
+            now=now,
+            tz=tz,
+        )
     )
     missions = zone_candidates(
-        db, for_user_id=for_user_id, effort=effort, now=now, tz=tz
+        db,
+        for_user_id=for_user_id,
+        effort=effort,
+        resting_fallback=False,
+        now=now,
+        tz=tz,
     )
     if missions:
         cards.insert(min(1, len(cards)), missions[0])
@@ -956,6 +993,13 @@ class UndoWindowClosed(Exception):
     corrections go through the Phase 4.6 last-done editor instead."""
 
 
+class UndoNotLatest(Exception):
+    """An undo was asked of a completion that isn't the task's most
+    recent (issue #15). Restoring ITS previous_last_done_at would rewind
+    the decay state right past a newer completion that still stands —
+    the task would instantly read overdue despite being just done."""
+
+
 def undo_completion(
     db: Session,
     log: CompletionLog,
@@ -966,7 +1010,10 @@ def undo_completion(
 
     Restores task.last_done_at from the value the completion overwrote
     (NULL preserved as NULL — a first-ever completion undoes back to
-    never-done) and deletes the log row. Deliberately untouched:
+    never-done) and deletes the log row. A campaign tick made by this
+    very completion is also reversed (issue #15) — "did it this spring"
+    must be backed by a completion that still stands. Deliberately
+    untouched:
     - streaks (current_streak, longest_streak, last_active_date) — one
       mis-tap plus a correction must never cost a 30-day streak; streaks
       only ever go up.
@@ -976,7 +1023,12 @@ def undo_completion(
 
     Only today's completions qualify ("today" in her local day via `tz`);
     anything older raises UndoWindowClosed — the Phase 4.6 editable
-    last-done date already covers history. Caller commits."""
+    last-done date already covers history. And only the task's MOST
+    RECENT completion qualifies (issue #15): undoing an earlier same-day
+    log would corrupt the decay state, so it raises UndoNotLatest.
+    Caller commits."""
+    from app.services import campaigns as campaign_service
+
     now = now or _utcnow()
     local = tz or timezone.utc
     if _aware(log.completed_at).astimezone(local).date() != now.astimezone(local).date():
@@ -984,8 +1036,26 @@ def undo_completion(
             "That one's from a previous day — you can adjust the task's "
             "last-done date instead."
         )
+    newer = db.scalar(
+        select(CompletionLog.id)
+        .where(
+            CompletionLog.task_id == log.task_id,
+            CompletionLog.id != log.id,
+            or_(
+                CompletionLog.completed_at > log.completed_at,
+                (CompletionLog.completed_at == log.completed_at)
+                & (CompletionLog.id > log.id),
+            ),
+        )
+        .limit(1)
+    )
+    if newer is not None:
+        raise UndoNotLatest(
+            "This task was done again since — undo that newer one instead."
+        )
     task = db.get(Task, log.task_id)
     task.last_done_at = log.previous_last_done_at
+    campaign_service.untick_for_undone_completion(db, log, local)
     db.delete(log)
     db.flush()
     return task
