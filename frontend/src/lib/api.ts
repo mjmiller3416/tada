@@ -7,6 +7,25 @@ export class ApiError extends Error {
   }
 }
 
+/** FastAPI's error `detail` is a string for HTTPExceptions but an array
+ * of `{loc, msg, …}` objects for 422 validation errors — flatten either
+ * shape so no surface ever renders "[object Object]" (issue #17). */
+function detailMessage(body: unknown, status: number): string {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((entry) =>
+        entry && typeof entry === "object" && "msg" in entry
+          ? String((entry as { msg: unknown }).msg)
+          : null,
+      )
+      .filter(Boolean);
+    if (messages.length > 0) return messages.join(" · ");
+  }
+  return `Request failed: ${status}`;
+}
+
 /**
  * Fetch wrapper for the FastAPI backend. Calls a same-origin path — Next's
  * rewrite in next.config.ts proxies it server-side to the backend — so the
@@ -28,8 +47,20 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      // The session expired mid-use (issue #17). The installed PWA can
+      // live for weeks without a reload, and every Done/Save after
+      // expiry would fail with a "try again" that can never succeed —
+      // go re-establish the session instead. (On /login itself a 401
+      // is just a wrong PIN — no redirect loop.)
+      window.location.assign("/login");
+    }
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.detail ?? `Request failed: ${res.status}`);
+    throw new ApiError(res.status, detailMessage(body, res.status));
   }
 
   if (res.status === 204) {
