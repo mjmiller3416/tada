@@ -45,17 +45,18 @@ export default function KidHome({ firstName }: { firstName: string }) {
   function handleDone(task: Task) {
     if (celebratingId !== null) return;
     setCelebratingId(task.id);
+    // The write fires NOW (issue #11): a kid tapping Done then Log out
+    // within the pop must still get their chore counted — the timer
+    // only paces the celebration and the reload.
+    const post = completeTask(task.id, "direct").catch(() => null);
     timerRef.current = setTimeout(async () => {
-      try {
-        await completeTask(task.id, "direct");
-      } finally {
-        setCelebratingId(null);
-        // A finished list deserves a bigger cheer than a single pop.
-        if (chores && chores.mine.length === 1 && task.assignee_id !== null) {
-          setConfetti(true);
-        }
-        load();
+      await post;
+      setCelebratingId(null);
+      // A finished list deserves a bigger cheer than a single pop.
+      if (chores && chores.mine.length === 1 && task.assignee_id !== null) {
+        setConfetti(true);
       }
+      load();
     }, DONE_POP_MS);
   }
 
