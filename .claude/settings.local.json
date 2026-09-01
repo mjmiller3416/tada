@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /c/Users/Mitchell/Documents/Tada status --short)",
+      "Bash(git -C /c/Users/Mitchell/Documents/Tada log --oneline -8)",
+      "Bash(node -e \"console.log\\(require\\('react/package.json'\\).version, require\\('react-dom/package.json'\\).version, require\\('next/package.json'\\).version\\)\")"
+    ]
+  }
+}

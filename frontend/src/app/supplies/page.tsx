@@ -20,7 +20,7 @@ const STATUSES: SupplyStatus[] = ["in_stock", "low", "out"];
 /**
  * The supply inventory (SPEC §6, Phase 2): one tap to say where things
  * stand — in stock, running low, all out. Manual only, never guessed.
- * Anything low/out hops onto MealGenie's shopping list by itself; Tada
+ * Anything low/out hops onto Enchanted Spoon's shopping list by itself; Tada
  * keeps no list of its own.
  */
 export default function SuppliesPage() {
@@ -77,7 +77,7 @@ function SuppliesScreen() {
     try {
       const updated = await updateSupply(supply.id, { status });
       if (updated.pushed_to_shopping_list) {
-        showToast(`${updated.name} added to your MealGenie list 🛒`);
+        showToast(`${updated.name} added to your Enchanted Spoon list 🛒`);
       }
     } finally {
       load();
@@ -96,8 +96,8 @@ function SuppliesScreen() {
   return (
     <AppShell title="Supplies" nav={NAV_ITEMS}>
       <p className={styles.help}>
-        Tap where things stand. Anything low or out hops onto your MealGenie
-        shopping list by itself. 🛒
+        Tap where things stand. Anything low or out hops onto your Enchanted
+        Spoon shopping list by itself. 🛒
       </p>
 
       <div className={styles.toast} aria-live="polite">

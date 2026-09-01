@@ -52,7 +52,7 @@ def update_supply(
 ) -> SupplyRead:
     """Rename and/or the one-tap manual status change (SPEC §6: manual
     only, never auto-decremented). Marking low/out pushes the item into
-    MealGenie's shopping list, deduped per low-run."""
+    Enchanted Spoon's shopping list, deduped per low-run."""
     supply = _get_supply(db, supply_id)
     if payload.name is not None:
         supply.name = payload.name.strip()

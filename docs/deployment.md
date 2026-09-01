@@ -108,7 +108,8 @@ Notes:
   **same value**; `VAPID_PRIVATE_KEY` stays backend-only. Generate both with
   `backend/scripts/generate_vapid_keys.py`.
 - `MEALGENIE_API_KEY` must equal the `INTEGRATION_API_KEY` env var on the separate
-  MealGenie Railway project — it's the shared secret for the one-way supply push
+  enchanted-spoon Railway project (the recipe app, formerly named MealGenie — the
+  var names keep the old name) — it's the shared secret for the one-way supply push
   (spec §6).
 - Leaving `MEALGENIE_API_URL`/`MEALGENIE_API_KEY` empty disables that integration
   without breaking anything else (supplies still track status locally).

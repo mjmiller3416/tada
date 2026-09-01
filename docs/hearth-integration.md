@@ -6,7 +6,7 @@ API. This document is the exact contract Hearth's client
 ([`src/lib/tada/client.ts`](../src/lib/tada/client.ts)) already calls.
 
 **Why this doc exists:** a survey of the Tada! backend
-(`C:\Users\mjmil\Documents\tada\backend`) found that its current API
+(`C:\Users\Mitchell\Documents\Tada\backend`) found that its current API
 **cannot** serve this integration as-is. The gaps below are hard blockers — not
 adapter work Hearth can paper over — because they concern authentication and
 attribution, which only the backend can grant. Until they land, `/clean` and

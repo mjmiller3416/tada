@@ -22,7 +22,7 @@ DEFAULT_TTL = 6 * 60 * 60
 #: Seconds before giving up on the push service's HTTP endpoint. Without
 #: it the underlying requests.post can wait forever — hanging a kid's
 #: completion request, or stalling an entire cron run on one bad
-#: endpoint (issue #24). The MealGenie and GitHub clients already set
+#: endpoint (issue #24). The Enchanted Spoon and GitHub clients already set
 #: explicit timeouts; this brings the third outbound client in line.
 SEND_TIMEOUT = 10
 

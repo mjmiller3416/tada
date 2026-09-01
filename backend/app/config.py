@@ -24,10 +24,13 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_claims_email: str = "info@endurance-decking.com"
 
-    # MealGenie shopping-list push (SPEC §6 Supplies). Base URL of the
-    # MealGenie API (no trailing slash) and the shared first-party API key —
-    # the SAME key set on the MealGenie Railway service. Leave empty to
-    # disable the integration (supplies still track status locally).
+    # Enchanted Spoon shopping-list push (SPEC §6 Supplies). Enchanted
+    # Spoon is the recipe app formerly named MealGenie — these fields keep
+    # the old name so deployed env vars keep working. Base URL of its API
+    # (no trailing slash) and the shared first-party API key — the SAME
+    # value as INTEGRATION_API_KEY on the enchanted-spoon Railway backend
+    # service. Leave empty to disable the integration (supplies still
+    # track status locally).
     mealgenie_api_url: str = ""
     mealgenie_api_key: str = ""
 
