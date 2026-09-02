@@ -20,10 +20,11 @@ import {
   type CompletionSource,
   type Effort,
   type SessionTimer,
+  type SupplyBrief,
   type Task,
 } from "@/lib/api";
 import { roomTone, snoozedLabel } from "@/lib/decay";
-import { supplyNote } from "@/lib/supplies";
+import SupplyLine from "@/components/SupplyLine";
 import { Button, Card, Confetti, FocusCard } from "@/components/ui";
 import styles from "./session.module.css";
 
@@ -306,6 +307,24 @@ function SessionScreen() {
     advance();
   }
 
+  /**
+   * A supply's status changed from the card (SPEC §6 Supplies). Supplies
+   * are shared, so every queued task that uses it repaints — a later card
+   * in this same session shows the heads-up without a refetch.
+   */
+  function handleSupplyChanged(updated: SupplyBrief) {
+    setTasks((current) =>
+      current.map((task) =>
+        task.supplies.some((s) => s.id === updated.id)
+          ? {
+              ...task,
+              supplies: task.supplies.map((s) => (s.id === updated.id ? updated : s)),
+            }
+          : task,
+      ),
+    );
+  }
+
   async function handleStartTimer() {
     if (!minutesParam || timerBusy) return;
     setTimerBusy(true);
@@ -462,7 +481,14 @@ function SessionScreen() {
             estimatedMinutes={current.estimated_minutes}
             roomName={current.room_name ?? undefined}
             roomTone={roomTone(current.room_id)}
-            supplyNote={supplyNote(current) ?? undefined}
+            // The supplies doorway (SPEC §6): whisper, heads-up, or the
+            // inline chips. Only for tasks with supplies linked, so every
+            // other card keeps its exact spacing.
+            supplyLine={
+              current.supplies.length > 0 ? (
+                <SupplyLine task={current} onChanged={handleSupplyChanged} />
+              ) : undefined
+            }
             // The one composed mission in a timed/room session carries
             // its zone label (Phase 11). Zone sessions already say so in
             // the header tag, so no per-card repeat there.

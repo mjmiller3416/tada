@@ -1,0 +1,48 @@
+/* The whisper: same size and ink as the card's other quiet labels
+   ("resting until…", the mission label), just tappable. A question she
+   can ignore — never a badge, never a counter. */
+.whisper {
+  align-self: flex-start;
+  margin: 0;
+  padding: var(--space-1) 0;
+  min-height: 32px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.whisper:hover {
+  color: var(--color-ink);
+}
+
+.whisperText {
+  text-decoration: underline;
+  text-decoration-color: var(--color-line);
+  text-underline-offset: 3px;
+}
+
+.whisper:hover .whisperText {
+  text-decoration-color: currentColor;
+}
+
+/* The heads-up, exactly as it has always looked — informative, never
+   alarming — now a button so a tap reopens the chips. */
+.note {
+  width: 100%;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--tint-peach-ink);
+  background: var(--tint-peach-bg);
+  border-radius: var(--radius-card);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}

@@ -7,6 +7,7 @@ import AuthGate from "@/components/AuthGate";
 import DirtinessDot from "@/components/DirtinessDot";
 import KidHome from "@/components/KidHome";
 import SnoozeMenu from "@/components/SnoozeMenu";
+import SupplyLine from "@/components/SupplyLine";
 import UndoToast from "@/components/UndoToast";
 import {
   afterPendingWrites,
@@ -23,12 +24,12 @@ import {
   type Effort,
   type FocusResponse,
   type SnoozeOption,
+  type SupplyBrief,
   type Task,
   type Zone,
 } from "@/lib/api";
 import { roomTone, snoozedLabel } from "@/lib/decay";
 import { friendlyDate, toLocalDateValue } from "@/lib/dates";
-import { supplyNote } from "@/lib/supplies";
 import { NAV_ITEMS } from "@/lib/nav";
 import { AppShell, Burst, Button, Card, Chip } from "@/components/ui";
 import styles from "./home.module.css";
@@ -211,6 +212,31 @@ function HomeScreen({ firstName }: { firstName: string }) {
     }
   }
 
+  /**
+   * A supply's status changed from a focus card (SPEC §6 Supplies).
+   * Supplies are shared, so every card that uses it repaints — no refetch,
+   * and the list never reshuffles under her mid-tap.
+   */
+  function handleSupplyChanged(updated: SupplyBrief) {
+    setFocus((current) =>
+      current
+        ? {
+            ...current,
+            tasks: current.tasks.map((task) =>
+              task.supplies.some((s) => s.id === updated.id)
+                ? {
+                    ...task,
+                    supplies: task.supplies.map((s) =>
+                      s.id === updated.id ? updated : s,
+                    ),
+                  }
+                : task,
+            ),
+          }
+        : current,
+    );
+  }
+
   const loading = focus === null;
   const needsSetup = focus !== null && focus.total_active_tasks === 0;
   const allCaughtUp = focus !== null && !needsSetup && focus.tasks.length === 0;
@@ -360,9 +386,10 @@ function HomeScreen({ firstName }: { firstName: string }) {
                       😴 {snoozedLabel(task.snoozed_until)}
                     </p>
                   )}
-                  {supplyNote(task) && (
-                    <p className={styles.supplyNote}>🧴 {supplyNote(task)}</p>
-                  )}
+                  {/* The supplies doorway (SPEC §6): whisper, heads-up,
+                      or the inline chips. Nothing for tasks without
+                      supplies linked. */}
+                  <SupplyLine task={task} onChanged={handleSupplyChanged} />
 
                   {snoozingId === task.id ? (
                     <SnoozeMenu

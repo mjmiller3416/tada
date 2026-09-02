@@ -53,14 +53,13 @@
   color: var(--color-ink-soft);
 }
 
-/* The inline "you're low on X" flag — informative, never alarming. */
-.supplyNote {
+/* The supplies doorway (whisper / heads-up / inline chips) sits tight
+   under the estimate, with a breath before Done — the same spacing the
+   heads-up flag always had. */
+.supplyLine {
+  display: flex;
+  flex-direction: column;
   margin: calc(-1 * var(--space-2)) 0 var(--space-3);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--tint-peach-ink);
-  background: var(--tint-peach-bg);
-  border-radius: var(--radius-card);
 }
 
 /* Anchors the Burst pop over the Done button. */
