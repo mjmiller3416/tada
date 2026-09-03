@@ -13,6 +13,7 @@ import {
   type Campaign,
   type Task,
 } from "@/lib/api";
+import { toLocalDateValue } from "@/lib/dates";
 import { NAV_ITEMS } from "@/lib/nav";
 import { AppShell, Button, Card, Chip } from "@/components/ui";
 import styles from "./campaigns.module.css";
@@ -25,10 +26,6 @@ import styles from "./campaigns.module.css";
  */
 export default function CampaignsPage() {
   return <AuthGate ownerOnly>{() => <CampaignsScreen />}</AuthGate>;
-}
-
-function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 function prettyDate(iso: string): string {
@@ -88,9 +85,12 @@ function CampaignsScreen() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [season, setSeason] = useState("");
-  const [startDate, setStartDate] = useState(() => isoDate(new Date()));
+  // Her LOCAL day, never UTC (issue #28): any US evening,
+  // toISOString() already reads tomorrow — a campaign meant to start
+  // today wouldn't be running yet.
+  const [startDate, setStartDate] = useState(() => toLocalDateValue());
   const [endDate, setEndDate] = useState(() =>
-    isoDate(new Date(Date.now() + 29 * 86400000)),
+    toLocalDateValue(new Date(Date.now() + 29 * 86400000)),
   );
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -122,6 +122,10 @@ function CampaignsScreen() {
 
   async function handleCreate() {
     if (saving || !name.trim() || picked.size === 0) return;
+    if (endDate < startDate) {
+      setError("The finish line can’t come before the start — check the dates.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {

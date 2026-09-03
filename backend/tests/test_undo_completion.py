@@ -137,3 +137,33 @@ class TestUndoWindow:
         log = complete_task(db, task, owner, "direct", morning)
         undo_completion(db, log, NOW.replace(hour=23, minute=55))
         assert task.last_done_at == days_ago(10)
+
+
+class TestUndoOrder:
+    """Issue #15: only the task's MOST RECENT completion can be undone.
+    Undoing an earlier same-day log would restore ITS previous_last_done_at
+    — rewinding the decay clock right past the newer Done that stands."""
+
+    def test_undoing_the_earlier_of_two_same_day_completions_is_refused(
+        self, db, make_task, owner
+    ):
+        from app.services.scheduling import UndoNotLatest
+
+        task = _add_task(db, make_task, last_done_at=days_ago(10))
+        morning = complete_task(db, task, owner, "direct", NOW.replace(hour=9))
+        complete_task(db, task, owner, "direct", NOW.replace(hour=14))
+        with pytest.raises(UndoNotLatest):
+            undo_completion(db, morning, NOW)
+        # Refusal changes nothing: the 2pm completion still governs decay.
+        assert task.last_done_at == NOW.replace(hour=14)
+
+    def test_undoing_newest_then_the_earlier_one_walks_history_back_exactly(
+        self, db, make_task, owner
+    ):
+        task = _add_task(db, make_task, last_done_at=days_ago(10))
+        morning = complete_task(db, task, owner, "direct", NOW.replace(hour=9))
+        afternoon = complete_task(db, task, owner, "direct", NOW.replace(hour=14))
+        undo_completion(db, afternoon, NOW)
+        assert task.last_done_at == NOW.replace(hour=9)
+        undo_completion(db, morning, NOW)
+        assert task.last_done_at == days_ago(10)

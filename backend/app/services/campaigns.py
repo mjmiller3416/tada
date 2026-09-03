@@ -8,12 +8,13 @@ day across the window.
 """
 
 import math
-from datetime import date, tzinfo
+from datetime import date, timezone, tzinfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.campaign import Campaign, CampaignTask
+from app.models.completion_log import CompletionLog
 from app.models.task import Task
 from app.services import scheduling
 
@@ -24,11 +25,23 @@ def is_running(campaign: Campaign, today: date) -> bool:
     return campaign.active and campaign.start_date <= today <= campaign.end_date
 
 
+def live_links(campaign: Campaign) -> list[CampaignTask]:
+    """The checklist rows progress and the detail view count (issue
+    #28): archived tasks drop out — a task archived mid-window can never
+    be offered or completed again, so counting it would pin the campaign
+    below 100% forever. With every task archived, the full checklist is
+    the honest picture (a finished-then-retired campaign stays 100%,
+    never a hollow 0/0)."""
+    live = [link for link in campaign.task_links if link.task.is_active]
+    return live or list(campaign.task_links)
+
+
 def progress(campaign: Campaign) -> tuple[int, int]:
-    """(done, total) across the campaign's checklist."""
-    total = len(campaign.task_links)
-    done = sum(1 for link in campaign.task_links if link.done)
-    return done, total
+    """(done, total) across the campaign's live checklist (see
+    live_links)."""
+    links = live_links(campaign)
+    done = sum(1 for link in links if link.done)
+    return done, len(links)
 
 
 def today_slice(
@@ -79,3 +92,51 @@ def mark_done_in_running_campaigns(db: Session, task_id: int, today: date) -> No
     ).all()
     for link in links:
         link.done = True
+
+
+def untick_for_undone_completion(
+    db: Session, log: CompletionLog, local: tzinfo
+) -> None:
+    """Reverse the tick `mark_done_in_running_campaigns` made for a
+    completion being undone (issue #15): a checklist tick means "did it
+    during this campaign", so it only survives the undo if ANOTHER
+    completion of the task still falls inside that campaign's window.
+    `log` is the row about to be deleted; `local` is her timezone (the
+    same clock the tick's `today` came from). Caller commits."""
+
+    def local_day(completed_at) -> date:
+        if completed_at.tzinfo is None:
+            completed_at = completed_at.replace(tzinfo=timezone.utc)
+        return completed_at.astimezone(local).date()
+
+    undone_day = local_day(log.completed_at)
+    links = db.scalars(
+        select(CampaignTask)
+        .join(Campaign)
+        .where(
+            CampaignTask.task_id == log.task_id,
+            CampaignTask.done.is_(True),
+            # The mirror of mark_done_in_running_campaigns: only ticks a
+            # running campaign could have made are candidates to reverse.
+            Campaign.active.is_(True),
+            Campaign.start_date <= undone_day,
+            Campaign.end_date >= undone_day,
+        )
+    ).all()
+    if not links:
+        return
+
+    remaining_days = {
+        local_day(completed_at)
+        for completed_at in db.scalars(
+            select(CompletionLog.completed_at).where(
+                CompletionLog.task_id == log.task_id, CompletionLog.id != log.id
+            )
+        ).all()
+    }
+    for link in links:
+        window = link.campaign
+        if not any(
+            window.start_date <= day <= window.end_date for day in remaining_days
+        ):
+            link.done = False

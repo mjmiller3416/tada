@@ -121,6 +121,11 @@ function SessionScreen() {
   const [index, setIndex] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const [doneMinutes, setDoneMinutes] = useState(0);
+  // Dones whose POST failed (issue #11): the card already celebrated —
+  // that stands — but the numbers and the badge check must stay honest,
+  // and she deserves a quiet heads-up that those tasks will resurface.
+  const [failedDones, setFailedDones] = useState(0);
+  const failedDonesRef = useRef(0);
   const [confetti, setConfetti] = useState(false);
 
   // The optional timer (Phase 5). Lives on the backend as a Reminder so
@@ -159,6 +164,8 @@ function SessionScreen() {
     setIndex(0);
     setDoneCount(0);
     setDoneMinutes(0);
+    setFailedDones(0);
+    failedDonesRef.current = 0;
     setNewBadges([]);
     startedAtRef.current = new Date().toISOString();
     // Order behind any in-flight Done/Undo posts, so "Keep going" never
@@ -209,7 +216,10 @@ function SessionScreen() {
     Promise.allSettled(pending)
       .then(() =>
         completeSession({
-          tasks_done: doneCount,
+          // Only Dones that actually landed (issue #11) — read after
+          // the posts settle, so badge credit never covers work the
+          // server never recorded.
+          tasks_done: Math.max(0, doneCount - failedDonesRef.current),
           started_at: startedAtRef.current,
         }),
       )
@@ -235,6 +245,13 @@ function SessionScreen() {
     const post = trackWrite(completeTask(task.id, copy.source)).catch(
       () => null,
     );
+    post.then((done) => {
+      if (done === null) {
+        failedDonesRef.current += 1;
+        setFailedDones(failedDonesRef.current);
+        setDoneMinutes((m) => Math.max(0, m - task.estimated_minutes));
+      }
+    });
     pendingCompletionsRef.current.push(post);
     // Offer Undo for a beat (Phase 9) — except in guest mode, which
     // stays deliberately minimal for a houseguest.
@@ -262,9 +279,15 @@ function SessionScreen() {
         done ? undoCompletion(done.completion_id).catch(() => {}) : undefined,
       ),
     );
-    // Keep the session's own numbers honest.
-    setDoneCount((n) => Math.max(0, n - 1));
-    setDoneMinutes((m) => Math.max(0, m - last.task.estimated_minutes));
+    // Keep the session's own numbers honest — but only when the
+    // completion actually landed: a failed post is already subtracted
+    // by the failure handler in handleDone, and doing both would count
+    // one mis-tap twice (shorting badge credit for real work).
+    last.post.then((done) => {
+      if (done === null) return;
+      setDoneCount((n) => Math.max(0, n - 1));
+      setDoneMinutes((m) => Math.max(0, m - last.task.estimated_minutes));
+    });
     // She didn't actually do it — put it back at the end of the queue
     // so it returns live, without interrupting the current card. On the
     // complete screen the session stays finished; the task resurfaces
@@ -347,14 +370,18 @@ function SessionScreen() {
 
   const current = tasks[index];
 
+  // Only Dones that reached the server (issue #11) — the numbers the
+  // celebration reports must be the numbers that were recorded.
+  const landedCount = Math.max(0, doneCount - failedDones);
+
   const completeBody =
-    doneCount === 0
+    landedCount === 0
       ? "You showed up, and that counts. Your home will be here when you’re ready."
       : mode === "guest"
-        ? `${doneCount} ${doneCount === 1 ? "spot" : "spots"} guest-ready in about ${doneMinutes} minutes. Let them ring the bell 🛎️`
+        ? `${landedCount} ${landedCount === 1 ? "spot" : "spots"} guest-ready in about ${doneMinutes} minutes. Let them ring the bell 🛎️`
         : mode === "campaign"
-          ? `${doneCount} more ${doneCount === 1 ? "task" : "tasks"} toward the finish line. Lovely, steady progress 🌷`
-          : `${doneCount} ${doneCount === 1 ? "task" : "tasks"} done — about ${doneMinutes} minutes of care. Your home says thank you.`;
+          ? `${landedCount} more ${landedCount === 1 ? "task" : "tasks"} toward the finish line. Lovely, steady progress 🌷`
+          : `${landedCount} ${landedCount === 1 ? "task" : "tasks"} done — about ${doneMinutes} minutes of care. Your home says thank you.`;
 
   return (
     <main className={styles.page}>
@@ -477,6 +504,17 @@ function SessionScreen() {
             <p className={styles.bigEmoji}>🎉</p>
             <h2 className={styles.endTitle}>Ta-da! Session complete.</h2>
             <p className={styles.endBody}>{completeBody}</p>
+
+            {/* A quiet truth, not an alarm (issue #11): a Done that
+                never reached the server just stays on the list. */}
+            {failedDones > 0 && (
+              <p className={styles.endBody}>
+                📶 {failedDones === 1 ? "One Done" : `${failedDones} Dones`}{" "}
+                couldn’t reach home base — no connection, maybe.{" "}
+                {failedDones === 1 ? "That task" : "Those tasks"} will stay
+                on your list for later.
+              </p>
+            )}
 
             {/* Freshly earned badges — little gifts, shown right in the
                 celebration (SPEC §5's badge check). */}

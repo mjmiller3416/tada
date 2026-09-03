@@ -86,9 +86,10 @@ class ListUpdate(BaseModel):
     status: str | None = None
     #: Turn the countdown nudge on/off (needs an event_date to turn on).
     reminder_enabled: bool | None = None
-    reminder_days_before: int = Field(
-        default=list_service.DEFAULT_REMINDER_DAYS_BEFORE, ge=0, le=30
-    )
+    #: None = not provided — the sync keeps the lead already persisted on
+    #: the reminder (issue #19: a rename must never snap a 14-day lead
+    #: back to the default 3).
+    reminder_days_before: int | None = Field(default=None, ge=0, le=30)
 
     @field_validator("status")
     @classmethod

@@ -127,12 +127,12 @@ Build:
 2. Supplies (SPEC §6): a Supply inventory with manual status only (in_stock / low /
    out — never auto-decremented). Link tasks to the supplies they use. When a task
    whose linked supply is low/out surfaces in a session, flag it inline. Tada has NO
-   shopping list of its own — when a supply is marked low/out, push it into MealGenie's
-   existing shopping list via MealGenie's API (base URL + shared API key from env vars).
+   shopping list of its own — when a supply is marked low/out, push it into Enchanted
+   Spoon's existing shopping list via its API (base URL + shared API key from env vars).
    One-way push only; dedupe with a last_pushed_at field so a supply isn't sent twice;
    tag pushed items (source "tada", category "household") so they're distinguishable from
-   groceries. Build against the endpoint contract in the "MealGenie integration" section
-   below.
+   groceries. Build against the endpoint contract in the "Enchanted Spoon integration"
+   section below.
 3. Maintenance (SPEC §6): support category "maintenance" on tasks with long cadences,
    surfaced in their own section/filter so they don't clutter daily cleaning.
 
@@ -140,13 +140,17 @@ Keep the kid experience simple and role-restricted. Follow SPEC §5 (design/voic
 §8 (conventions). Summarize what you built when done.
 ```
 
-**Phase 2 is done when:** a kid can log in, check off a chore, and the owner gets a notification; supplies can be marked low/out and get pushed into MealGenie's shopping list; maintenance tasks live in their own section.
+**Phase 2 is done when:** a kid can log in, check off a chore, and the owner gets a notification; supplies can be marked low/out and get pushed into Enchanted Spoon's shopping list; maintenance tasks live in their own section.
 
 ---
 
-## MealGenie integration (do this in the MealGenie repo, alongside Tada's Phase 2)
+## Enchanted Spoon integration (do this in the Enchanted Spoon repo, alongside Tada's Phase 2)
 
-These changes live on the *MealGenie* side so Tada can push supplies into its shopping list. Coordinate with the in-flight shopping-list **sync refactor** — build against the post-refactor shape (that refactor may already add most of this).
+> Enchanted Spoon is the recipe app formerly named **MealGenie**. The env-var names
+> (`MEALGENIE_*` on Tada, `INTEGRATION_*` on Enchanted Spoon) and Tada's
+> `services/mealgenie.py` module keep the old name so deployed config keeps working.
+
+These changes live on the *Enchanted Spoon* side so Tada can push supplies into its shopping list. Coordinate with the in-flight shopping-list **sync refactor** — build against the post-refactor shape (that refactor may already add most of this).
 
 ```
 Add an endpoint so a trusted first-party app (Tada) can add items to the shopping list.
@@ -168,21 +172,21 @@ Set the SAME shared API key as an env var on both Railway services. Summarize wh
 built and give me the exact endpoint contract so the Tada side matches it.
 ```
 
-**MealGenie side is done when:** the endpoint accepts an authenticated item, dedupes it, tags it with source/category, and a test push from Tada lands in MealGenie's shopping list.
+**Enchanted Spoon side is done when:** the endpoint accepts an authenticated item, dedupes it, tags it with source/category, and a test push from Tada lands in Enchanted Spoon's shopping list.
 
 **As built (the contract Tada's `services/mealgenie.py` targets):**
 
 ```
 POST {MEALGENIE_API_URL}/api/shopping/external/items
-Header: X-API-Key: <shared secret>          # MealGenie env: INTEGRATION_API_KEY
+Header: X-API-Key: <shared secret>          # Enchanted Spoon env: INTEGRATION_API_KEY
 Body:   { "name": str, "quantity"?: number, "unit"?: str,
           "source": "tada", "category": "household" }
 → 201 (inserted) or 200 (updated existing); upsert keyed on (name, source).
-Items land on the MealGenie account set by INTEGRATION_USER_ID.
+Items land on the Enchanted Spoon account set by INTEGRATION_USER_ID.
 ```
 
-Tada env vars: `MEALGENIE_API_URL` = MealGenie backend origin (no trailing
-slash), `MEALGENIE_API_KEY` = the same value as MealGenie's
+Tada env vars: `MEALGENIE_API_URL` = Enchanted Spoon backend origin (no trailing
+slash), `MEALGENIE_API_KEY` = the same value as Enchanted Spoon's
 `INTEGRATION_API_KEY`.
 
 ---
@@ -328,7 +332,7 @@ section 8 conventions and summarize what you built when done.
 ## Working notes
 
 - After each phase, do a quick pass on her actual phone before starting the next — the whole design hinges on the phone feel.
-- If a feature starts creeping in scope (the way MealGenie did), park it and finish the phase first.
+- If a feature starts creeping in scope (the way MealGenie — now Enchanted Spoon — did), park it and finish the phase first.
 - Keep the reward system encouraging-only. If any copy or mechanic starts to feel like it's nagging or shaming, cut it — that betrays the core design.
 
 ---
@@ -675,7 +679,7 @@ Build:
    - Show two figures: the list total and the checked total. On a shopping list, checked
      means bought, so the checked total reads as spend-to-date — "$340 of $500".
    - This is deliberately self-contained. A future budget app will consume these per-item
-     prices via a one-way push modeled on the MealGenie integration, but build NOTHING toward
+     prices via a one-way push modeled on the Enchanted Spoon integration, but build NOTHING toward
      that here: no budget model, no category link, no external calls.
 
 6. NEW STARTER TEMPLATES, seeded the same way the packing templates are: school supplies,
@@ -683,10 +687,10 @@ Build:
    set — $40" fits name, notes, and price.
 
 7. AMEND SPEC §6. It currently states flatly that Tada has no shopping list of its own
-   (supplies push to MealGenie's). One-off shopping lists contradict that line as written.
-   Add the distinction explicitly: MealGenie's list is an ongoing replenishment stream, while
+   (supplies push to Enchanted Spoon's). One-off shopping lists contradict that line as written.
+   Add the distinction explicitly: Enchanted Spoon's list is an ongoing replenishment stream, while
    a Christmas or school-supply list is a finite project that gets finished and archived.
-   State plainly that these lists do NOT push to MealGenie, so a future session doesn't
+   State plainly that these lists do NOT push to Enchanted Spoon, so a future session doesn't
    helpfully invent that integration.
 
 Follow SPEC §8 conventions. When done, summarize what you built, and confirm explicitly that
@@ -968,7 +972,7 @@ deep). Revisit only with three concrete examples in hand, and migrate by rule ra
 re-tagging by hand.
 
 **Budget app integration — deferred by design.** Phase 6 adds per-item prices, which is the
-foundation. When the budget app exists, model the link on the MealGenie integration: one-way
+foundation. When the budget app exists, model the link on the Enchanted Spoon integration: one-way
 push, shared API key from env, upsert on the receiving end, failures swallowed. Expose the
 external line-item endpoint in the budget app's own Phase 1 so it's a design input rather than
 a retrofit. Keep the budget app owning budgets and spend, and Tada owning items and checkoffs —

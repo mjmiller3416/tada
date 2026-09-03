@@ -163,17 +163,27 @@ def update_list(
     # Re-sync the reminder against the list's new state: an explicit
     # toggle wins; otherwise keep an existing nudge aligned with any
     # date/status change (archiving or clearing the date quiets it).
-    if payload.reminder_enabled is not None:
-        wants_reminder = payload.reminder_enabled
-    else:
-        wants_reminder = list_service.reminder_enabled(db, parent_list)
-    if payload.reminder_enabled and parent_list.event_date is None:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Set an event date to get a reminder"
+    # Only when the request actually touched a reminder-relevant field
+    # (issue #19) — a bare rename must never rewrite the schedule.
+    touched_reminder = {
+        "reminder_enabled",
+        "reminder_days_before",
+        "event_date",
+        "clear_event_date",
+        "status",
+    } & payload.model_fields_set
+    if touched_reminder:
+        if payload.reminder_enabled is not None:
+            wants_reminder = payload.reminder_enabled
+        else:
+            wants_reminder = list_service.reminder_enabled(db, parent_list)
+        if payload.reminder_enabled and parent_list.event_date is None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "Set an event date to get a reminder"
+            )
+        list_service.sync_countdown_reminder(
+            db, current_user, parent_list, wants_reminder, payload.reminder_days_before
         )
-    list_service.sync_countdown_reminder(
-        db, current_user, parent_list, wants_reminder, payload.reminder_days_before
-    )
 
     db.commit()
     db.refresh(parent_list)

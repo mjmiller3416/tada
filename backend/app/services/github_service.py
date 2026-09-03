@@ -31,6 +31,16 @@ CATEGORY_TO_LABEL: dict[str, str] = {
 FALLBACK_LABEL = "feedback"
 
 _CLAUDE_MENTION = re.compile(r"@claude", re.IGNORECASE)
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+#: Caps on client-supplied metadata (issue #26): the schema allows an
+#: arbitrary dict, and an oversized body 422s at GitHub — which the
+#: router can only surface as a generic failure for a message that was
+#: itself fine.
+MAX_METADATA_ITEMS = 20
+MAX_METADATA_KEY_LEN = 100
+MAX_METADATA_VALUE_LEN = 500
+MAX_NAME_LEN = 100
 
 
 class GitHubIssueError(Exception):
@@ -43,8 +53,23 @@ def _sanitize(message: str) -> str:
     return _CLAUDE_MENTION.sub("@ claude", message)
 
 
+def _clean_field(value: str, max_len: int) -> str:
+    """The treatment every non-message string gets before it can reach
+    the issue (issue #26): the same trigger-mention break as the message,
+    control characters stripped, newlines flattened, and a length cap —
+    client-supplied metadata must never be able to auto-dispatch the
+    Action or oversize the body."""
+    value = _sanitize(value)
+    value = _CONTROL_CHARS.sub("", value)
+    value = " ".join(value.split())
+    return value[:max_len]
+
+
 def _build_title(category: str, sanitized_message: str) -> str:
-    return f"[{category}] {sanitized_message[:60].strip()}"
+    # Flatten to one line first: a message starting with a short line +
+    # newline must not become a mangled multi-line title.
+    first_line = " ".join(sanitized_message.split())
+    return f"[{_clean_field(category, 50)}] {first_line[:60].strip()}"
 
 
 def _build_body(
@@ -53,12 +78,18 @@ def _build_body(
     sanitized_message: str,
     metadata: dict[str, str | None] | None,
 ) -> str:
-    lines = [f"**From:** {submitter_name} ({submitter_role})", "", "---", "", sanitized_message]
+    name = _clean_field(submitter_name, MAX_NAME_LEN)
+    role = _clean_field(submitter_role, 50)
+    lines = [f"**From:** {name} ({role})", "", "---", "", sanitized_message]
 
     present = {k: v for k, v in (metadata or {}).items() if v is not None}
     if present:
         lines += ["", "**Context:**"]
-        lines += [f"- **{key}:** {value}" for key, value in present.items()]
+        lines += [
+            f"- **{_clean_field(key, MAX_METADATA_KEY_LEN)}:** "
+            f"{_clean_field(value, MAX_METADATA_VALUE_LEN)}"
+            for key, value in list(present.items())[:MAX_METADATA_ITEMS]
+        ]
 
     return "\n".join(lines)
 

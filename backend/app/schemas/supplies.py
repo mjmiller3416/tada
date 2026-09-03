@@ -25,7 +25,7 @@ class SupplyRead(BaseModel):
     task_count: int
 
     #: True on the response to the status change that actually pushed the
-    #: item into MealGenie's list — lets the UI say "added to your
+    #: item into Enchanted Spoon's list — lets the UI say "added to your
     #: shopping list ✓" only when it really happened.
     pushed_to_shopping_list: bool = False
 

@@ -29,6 +29,8 @@ from app.services.list_templates import TEMPLATES
 #: recurrence_rule marker for countdown reminders — the cron recognizes
 #: them by list_id, this just keeps rows readable. (Rows created before
 #: Phase 6 carry the old "packing_countdown" marker; both are inert.)
+#: Since issue #19 the chosen lead rides along as "list_countdown:<n>"
+#: — the session-timer pattern — so a later re-sync can't forget it.
 COUNTDOWN_RULE = "list_countdown"
 
 #: Default lead time for the countdown nudge when none is given.
@@ -231,19 +233,43 @@ def _first_occurrence(
     return candidate.astimezone(timezone.utc)
 
 
+def _persisted_days_before(reminder: Reminder | None) -> int | None:
+    """The lead persisted in a countdown reminder's rule
+    ("list_countdown:<n>"), or None for pre-#19 rows without a suffix."""
+    if reminder is None or not reminder.recurrence_rule:
+        return None
+    _, _, days = reminder.recurrence_rule.partition(":")
+    return int(days) if days.isdigit() else None
+
+
 def sync_countdown_reminder(
     db: Session,
     user: User,
     parent_list: List,
     enabled: bool,
-    days_before: int = DEFAULT_REMINDER_DAYS_BEFORE,
+    days_before: int | None = None,
 ) -> None:
     """Create or clear the list's countdown reminder to match her choice.
 
     One active reminder per list at most. The body stored here is a
     placeholder — the cron composes the real one at send time from the
-    live unchecked count, so it's never stale. Caller commits."""
-    existing = _get_countdown(db, parent_list.id)
+    live unchecked count, so it's never stale. `days_before=None` means
+    "not chosen this time": the lead persisted on the list's most recent
+    reminder row wins — including a deactivated one, so toggling the
+    nudge off and back on keeps it too (issue #19 — nothing but an
+    explicit choice may move her 14-day nudge to the default 3). A
+    re-enable revives that row rather than adding another. Caller
+    commits."""
+    existing = _get_countdown(db, parent_list.id) or db.scalar(
+        select(Reminder)
+        .where(Reminder.list_id == parent_list.id)
+        .order_by(Reminder.id.desc())
+        .limit(1)
+    )
+    if days_before is None:
+        days_before = _persisted_days_before(existing)
+    if days_before is None:
+        days_before = DEFAULT_REMINDER_DAYS_BEFORE
 
     wants = (
         enabled
@@ -273,13 +299,15 @@ def sync_countdown_reminder(
                 title=parent_list.name,
                 body="",  # composed live at send time
                 scheduled_for=scheduled_for,
-                recurrence_rule=COUNTDOWN_RULE,
+                recurrence_rule=f"{COUNTDOWN_RULE}:{days_before}",
                 active=True,
             )
         )
     else:
         existing.scheduled_for = scheduled_for
         existing.last_sent_at = None
+        existing.recurrence_rule = f"{COUNTDOWN_RULE}:{days_before}"
+        existing.active = True
 
 
 def advance_countdown_reminder(

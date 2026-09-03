@@ -59,17 +59,26 @@ export default function FocusCard({
 }: FocusCardProps) {
   const [celebrating, setCelebrating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A Done whose pop hasn't finished yet. Unmounting mid-pop (ending
+  // the session, a nav tap) FLUSHES it instead of cancelling (issue
+  // #11) — the celebration is presentation; the completion must land.
+  const pendingDoneRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      const flush = pendingDoneRef.current;
+      pendingDoneRef.current = null;
+      if (flush) flush();
     };
   }, []);
 
   function handleDone() {
     if (celebrating) return;
     setCelebrating(true);
+    pendingDoneRef.current = onDone;
     timerRef.current = setTimeout(() => {
+      pendingDoneRef.current = null;
       setCelebrating(false);
       onDone();
     }, DONE_POP_MS);

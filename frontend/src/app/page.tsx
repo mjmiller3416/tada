@@ -171,19 +171,25 @@ function HomeScreen({ firstName }: { firstName: string }) {
   function handleDone(task: Task) {
     if (celebratingId !== null) return;
     setCelebratingId(task.id);
+    // The write fires NOW (issue #11): the celebration is presentation,
+    // never a precondition — tapping a nav link mid-pop unmounts this
+    // screen and cancels the timer, but the Done still lands. The
+    // composed mission card logs source "zone" so zone history sees
+    // completions made from home (issue #30).
+    const post = trackWrite(
+      completeTask(task.id, task.task_type === "zone" ? "zone" : "direct"),
+    ).catch(() => null);
     timerRef.current = setTimeout(async () => {
-      try {
-        const done = await trackWrite(completeTask(task.id, "direct"));
+      const done = await post;
+      if (done) {
         // The burst has landed — now offer a quiet Undo for a beat
         // (Phase 9), in case that Done wasn't meant.
         undoCompletionIdRef.current = done.completion_id;
         setUndoKey((k) => (k ?? 0) + 1);
-      } catch {
-        // The reload below shows the honest state either way.
-      } finally {
-        setCelebratingId(null);
-        loadFocus(effort);
       }
+      // On failure the reload below shows the honest state.
+      setCelebratingId(null);
+      loadFocus(effort);
     }, DONE_POP_MS);
   }
 

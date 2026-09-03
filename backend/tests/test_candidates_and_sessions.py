@@ -14,6 +14,7 @@ from app.services.scheduling import (
     MAX_SESSION_TASKS,
     build_session,
     candidate_tasks,
+    daily_focus,
     is_snoozed,
 )
 
@@ -115,6 +116,41 @@ class TestRestingFallback:
             snoozed_until=NOW + timedelta(hours=1),
         )
         assert fresh_resting not in candidate_tasks(db, now=NOW)
+
+
+class TestHomeFocusNeverShowsResting:
+    """Issue #37: on the home screen, resting a task must actually remove
+    it. The issue-#8 fallback (see TestRestingFallback above) belongs to
+    the surfaces where she asks for work — sessions — not the calm 1–3."""
+
+    def test_daily_focus_hides_a_resting_task_even_when_nothing_else_is_left(
+        self, db, add_task
+    ):
+        add_task(name="just rested", snoozed_until=NOW + timedelta(hours=3))
+        assert daily_focus(db, limit=3, now=NOW) == []
+
+    def test_resting_the_last_of_three_does_not_bring_the_others_back(
+        self, db, add_task
+    ):
+        # Her exact report: rest all three cards one by one — the third
+        # rest must empty the list, not resurface all three with 😴.
+        for name in ("first", "second", "third"):
+            add_task(name=name, snoozed_until=NOW + timedelta(hours=3))
+        assert daily_focus(db, limit=3, now=NOW) == []
+
+    def test_daily_focus_still_serves_unrested_work(self, db, add_task):
+        add_task(name="rested", snoozed_until=NOW + timedelta(hours=3))
+        awake = add_task(name="awake")
+        assert daily_focus(db, limit=3, now=NOW) == [awake]
+
+    def test_sessions_keep_the_resting_fallback(self, db, add_task):
+        # "I have 15 minutes" is an explicit ask for work — once nothing
+        # un-rested is left, resting tasks may still fill it (issue #8).
+        resting = add_task(
+            name="resting", estimated_minutes=10,
+            snoozed_until=NOW + timedelta(hours=3),
+        )
+        assert build_session(db, minutes=15, now=NOW) == [resting]
 
 
 class TestLensFilters:

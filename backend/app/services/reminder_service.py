@@ -175,14 +175,19 @@ def advance_daily_nudge(db: Session, reminder: Reminder, user: User) -> None:
 
 def compose_daily_nudge(db: Session, user: User) -> tuple[str, str]:
     """The nudge content, composed at send time from the live priority
-    ranking so it always reflects today's actual state."""
+    ranking so it always reflects today's actual state.
+
+    The push mirrors the home screen exactly (issue #14): with the
+    Phase 11 lanes active it goes through the composer — so it can never
+    name an out-of-window zone mission or a project — and both paths
+    skip resting tasks (issue #37): a push about the very task she asked
+    to rest is the one nudge the no-guilt voice can't survive."""
     first_name = user.name.split()[0] if user.name else "there"
-    top = scheduling.daily_focus(
-        db,
-        limit=1,
-        for_user_id=user.id,
-        tz=settings_service.user_timezone(db, user.id),
-    )
+    tz = settings_service.user_timezone(db, user.id)
+    if settings_service.lanes_active(db, user.id):
+        top = scheduling.compose_focus(db, limit=1, for_user_id=user.id, tz=tz)
+    else:
+        top = scheduling.daily_focus(db, limit=1, for_user_id=user.id, tz=tz)
     if not top:
         return (
             f"Good morning, {first_name} ☀️",

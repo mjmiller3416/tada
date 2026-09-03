@@ -21,7 +21,7 @@ class Supply(Base):
     that drifts).
 
     Tada has no shopping list of its own: when status goes low/out the
-    supply is pushed into MealGenie's list (services/mealgenie.py), and
+    supply is pushed into Enchanted Spoon's list (services/mealgenie.py), and
     `last_pushed_at` dedupes so one low-run is pushed exactly once.
     Restocking clears it, so the next low-run pushes again."""
 
