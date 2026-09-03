@@ -17,8 +17,14 @@ type FocusCardProps = {
   /** Room tag shown as a chip; omit for room-less tasks. */
   roomName?: string;
   roomTone?: ChipTone;
-  /** Inline supply flag ("heads up — you're low on…"); omit when stocked. */
-  supplyNote?: string;
+  /**
+   * The supplies doorway (SPEC §6 Supplies) — a SupplyLine, which is the
+   * quiet "Running low on anything?" whisper, the "heads up — you're low
+   * on…" flag, or the inline status chips, depending on state. Pass it
+   * only for tasks with supplies linked; other cards look as they always
+   * have.
+   */
+  supplyLine?: React.ReactNode;
   /** The zone label a composed mission card carries (Phase 11), e.g.
    * "🧭 This week's Kitchen mission". Quiet context, never a counter. */
   missionLabel?: string;
@@ -49,7 +55,7 @@ export default function FocusCard({
   estimatedMinutes,
   roomName,
   roomTone = "periwinkle",
-  supplyNote,
+  supplyLine,
   missionLabel,
   restingLabel,
   current,
@@ -95,7 +101,7 @@ export default function FocusCard({
       <h2 className={styles.taskName}>{taskName}</h2>
       <p className={styles.estimate}>about {estimatedMinutes} min</p>
       {restingLabel && <p className={styles.restingLabel}>😴 {restingLabel}</p>}
-      {supplyNote && <p className={styles.supplyNote}>🧴 {supplyNote}</p>}
+      {supplyLine && <div className={styles.supplyLine}>{supplyLine}</div>}
 
       <div className={styles.doneWrap}>
         <Burst play={celebrating} />

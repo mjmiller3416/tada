@@ -158,9 +158,9 @@ function SuppliesScreen() {
         {supplies !== null && supplies.length === 0 && (
           <Card padding="lg" className={styles.emptyCard}>
             <p className={styles.emptyText}>
-              Nothing here yet — add the things you clean with, then link
-              them to tasks so Tada can give you a heads-up before you run
-              dry.
+              Nothing here yet — add the things you clean with and link them
+              to tasks. When you notice one running low, a tap on the task
+              marks it, and it hops onto your Enchanted Spoon list.
             </p>
           </Card>
         )}
