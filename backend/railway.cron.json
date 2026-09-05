@@ -4,8 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python -m app.cron.send_reminders",
-    "cronSchedule": "* * * * *",
-    "restartPolicyType": "NEVER"
+    "startCommand": "python -m app.cron.reminder_worker",
+    "restartPolicyType": "ALWAYS"
   }
 }

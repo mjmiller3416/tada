@@ -7,7 +7,7 @@ from app.database import Base
 
 
 class Reminder(Base):
-    """Polled by the Railway cron service every minute (SPEC §2). Two kinds
+    """Polled by the reminder worker every minute (SPEC §2). Two kinds
     exist in Phase 1:
 
     - The daily nudge: one per user, `recurrence_rule="daily"`, `task_id`

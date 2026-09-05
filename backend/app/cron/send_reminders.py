@@ -1,7 +1,12 @@
-"""Standalone entrypoint for the Railway "cron" service. Deployed with a
-Cron Schedule of `* * * * *` (every minute) and start command
-`python -m app.cron.send_reminders`. Deliberately not a FastAPI route —
-Railway invokes it as a one-shot process, not an HTTP request.
+"""One pass of the reminder engine: find every reminder due now, decide
+what each one means, send the resulting pushes.
+
+In production `app.cron.reminder_worker` (the Railway service still named
+"cron") calls `run()` once a minute, forever; `python -m
+app.cron.send_reminders` runs a single pass by hand — local dev, or a
+one-off catch-up. It began life as a Railway cron schedule, which turned
+out to fire only once per deploy (see reminder_worker's docstring).
+Deliberately not a FastAPI route — it runs outside the web service.
 
 Phase 1: the Reminder table now holds real rows (see
 services/reminder_service.py):
@@ -59,10 +64,16 @@ SESSION_TIMER_TAG = "session-timer"
 #: rather than congratulate her an hour after she stopped (issue #35).
 SESSION_TIMER_TTL = 120
 
+#: A session timer the engine only reaches more than this many seconds
+#: after it was due (an outage, a stalled deploy) is dropped rather than
+#: sent — "that's your 15 minutes" an hour late is the same nag the short
+#: TTL exists to prevent, just from the server side.
+SESSION_TIMER_GRACE = 10 * 60
+
 #: Postgres advisory lock key ("7ADA") so overlapping runs can never
-#: double-send the same due reminders (issue #24). Railway skips
-#: overlapping cron executions on its own; this covers manual runs and
-#: any future scheduler that doesn't.
+#: double-send the same due reminders (issue #24): the redeploy window
+#: when the old and new worker are both alive, a manual pass run beside
+#: the worker, or a pass that outlasts its minute.
 CRON_LOCK_KEY = 0x7ADA
 
 
@@ -85,6 +96,41 @@ def _user_tz(db: Session, user_id: int) -> ZoneInfo | timezone:
         return ZoneInfo(settings_service.get_setting(db, user_id, "timezone"))
     except Exception:
         return timezone.utc
+
+
+def _aware(moment: datetime) -> datetime:
+    """SQLite hands back naive UTC datetimes; Postgres aware ones."""
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
+
+
+def _daily_nudge_is_current(
+    reminder: Reminder, now: datetime, tz: ZoneInfo | timezone
+) -> bool:
+    """Whether this daily nudge should go out now.
+
+    A nudge due on an EARLIER local day means the engine wasn't running
+    when it was due. Sending it now would be yesterday's "Good morning"
+    tonight — or a whole backlog of them after an outage — which is
+    exactly what the end-of-day TTL exists to prevent. Instead it is
+    re-anchored to today's occurrence at the same wall-clock time: sent
+    now if that moment has already passed (today's nudge, merely late),
+    otherwise left waiting for it. A nudge due earlier TODAY is simply
+    late and still goes out, as before.
+    """
+    scheduled_local = _aware(reminder.scheduled_for).astimezone(tz)
+    now_local = now.astimezone(tz)
+    if scheduled_local.date() >= now_local.date():
+        return True
+    todays = datetime.combine(now_local.date(), scheduled_local.time(), tzinfo=tz)
+    if todays <= now_local:
+        return True
+    reminder.scheduled_for = todays.astimezone(timezone.utc)
+    logger.info(
+        "Reminder %d (daily nudge) was due on an earlier day; waiting for today's %s",
+        reminder.id,
+        todays.strftime("%H:%M"),
+    )
+    return False
 
 
 def _end_of_day_ttl(tz: ZoneInfo | timezone) -> int:
@@ -133,6 +179,16 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> list[PushJob]:
     # ago, so it fires even during a vacation window — it's her timer,
     # not a nudge. It only notifies; it never ends the session for her.
     if reminder_service.is_session_timer(reminder):
+        late_by = (now - _aware(reminder.scheduled_for)).total_seconds()
+        if late_by > SESSION_TIMER_GRACE:
+            # The moment has passed — the engine wasn't running when it
+            # was due. Drop it: never congratulate her an hour after she
+            # stopped, and never deliver a stale backlog after a restart.
+            reminder.active = False
+            logger.info(
+                "Reminder %d dropped (session timer %d s late)", reminder.id, int(late_by)
+            )
+            return []
         reminder.last_sent_at = now
         reminder.active = False
         return job(reminder.title, reminder.body, tag=SESSION_TIMER_TAG, ttl=SESSION_TIMER_TTL)
@@ -194,16 +250,16 @@ def _process(db: Session, reminder: Reminder, now: datetime) -> list[PushJob]:
         return job(reminder.title, reminder.body)
 
     if reminder.recurrence_rule == reminder_service.DAILY_RULE:
-        # Daily nudge: decay-aware content, then roll to tomorrow.
+        # Daily nudge: decay-aware content, then roll to tomorrow. A nudge
+        # left over from an earlier day is never sent as-is (see
+        # _daily_nudge_is_current).
+        tz = _user_tz(db, user.id)
+        if not _daily_nudge_is_current(reminder, now, tz):
+            return []
         title, body = reminder_service.compose_daily_nudge(db, user)
         reminder.last_sent_at = now
         reminder_service.advance_daily_nudge(db, reminder, user)
-        return job(
-            title,
-            body,
-            tag=DAILY_NUDGE_TAG,
-            ttl=_end_of_day_ttl(_user_tz(db, user.id)),
-        )
+        return job(title, body, tag=DAILY_NUDGE_TAG, ttl=_end_of_day_ttl(tz))
 
     # Plain one-shot reminder.
     reminder.last_sent_at = now
