@@ -15,7 +15,7 @@ Everything lives in one Railway project, **`tada`**, single environment
 |---|---|---|
 | `backend` | FastAPI app (`uvicorn`) | `backend/railway.json` |
 | `frontend` | Next.js PWA | none — Railway auto-detects (Nixpacks + `npm run build`/`npm start`) |
-| `cron` | reminder sender, once a minute | `backend/railway.cron.json` |
+| `cron` | reminder worker — always on, one pass a minute | `backend/railway.cron.json` |
 | `Postgres` | Railway-managed Postgres | n/a (Railway template) |
 
 `backend` and `cron` share the same codebase (`backend/`) but deploy as separate
@@ -37,7 +37,8 @@ railway logs --service backend -n 50
 railway logs --service backend --build -n 50   # build-time logs, to confirm which commit built
 ```
 
-`cron` legitimately shows `STOPPED` between runs — see §4. That is not a failure.
+`cron` is the always-on reminder worker and must show as running — see §4. A
+`STOPPED`/`Completed` state there means reminders are not going out.
 
 ## 3. Backend: migrations run automatically
 
@@ -60,26 +61,47 @@ To check the deployed schema version directly:
 railway run --service backend alembic current
 ```
 
-## 4. Cron service
+## 4. Reminder worker (the Railway service named `cron`)
 
 `backend/railway.cron.json`:
 
 ```json
 {
   "deploy": {
-    "startCommand": "python -m app.cron.send_reminders",
-    "cronSchedule": "* * * * *",
-    "restartPolicyType": "NEVER"
+    "startCommand": "python -m app.cron.reminder_worker",
+    "restartPolicyType": "ALWAYS"
   }
 }
 ```
 
-Railway spins up a fresh instance every minute, runs `send_reminders.py` (queries
-`Reminder` rows due now, sends the matching web pushes), and lets it exit —
-`restartPolicyType: NEVER` means Railway does not try to keep it alive between runs.
-**`railway service status` showing `STOPPED` is the expected steady state**; it only
-means "not mid-run right now." Use `railway logs --service cron -n 50` to see recent
-executions if reminders seem to be missing.
+The service keeps its historical name, but since September 2026 it is an
+**always-on worker, not a Railway cron schedule.** `reminder_worker.py` runs one
+pass of `send_reminders.run()` (queries `Reminder` rows due now, sends the matching
+web pushes) immediately at startup and then at every wall-clock minute, forever;
+`restartPolicyType: ALWAYS` means Railway restarts it if it ever exits.
+**`railway service status` must show it running at all times** — a cron-style
+`STOPPED`/`Completed` state now means reminders are not going out.
+
+Two settings in the Railway dashboard matter and are NOT expressed by the config
+file: the service's **Cron Schedule must be empty** and **App Sleeping must be off**.
+If a schedule is ever set again, Railway treats the worker as a cron job — it starts
+it once, sees it "still running" at the next trigger, and skips every trigger after
+that — and stops restarting it.
+
+Why not Railway's cron schedule: it has a 5-minute floor (the spec wants a minute),
+and it skips any trigger while it believes the previous execution is still running.
+In production (August–September 2026) the schedule fired exactly once per git
+deploy and never again, so every nudge and snooze reminder went out in a batch at
+the next deploy — which looked, from her phone, like notifications arriving at
+random. A loop has no scheduler to fall out with.
+
+Liveness check: `railway logs --service cron -n 20` shows one
+`Checked reminders at …: N due` line per minute. To run a single pass by hand
+(locally, or as a one-off catch-up) use `python -m app.cron.send_reminders`.
+
+Note: Railway has deprecated config-as-code files (`railway.json`,
+`railway.cron.json`) with a hard cutoff of 2026-12-01; the start command and
+restart policy above are mirrored in the dashboard so the service survives that.
 
 ## 5. Environment variables
 

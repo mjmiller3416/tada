@@ -28,7 +28,7 @@
 - **Database:** **Railway Postgres**.
 - **Hosting:** everything on **Railway** (alongside two existing apps). Backend, frontend, DB, and the cron service are all Railway services.
 - **Notifications:** **Web Push** using the standard VAPID protocol. Backend sends pushes with **`pywebpush`**. No native app, no FCM integration directly — the browser's push service handles delivery. Works reliably on Android Chrome when the PWA is installed and notification permission is granted.
-- **Reminder engine:** a **Railway cron job running every minute** that queries reminders due now and sends the corresponding pushes. Simple, restart-safe, easy to reason about. No in-process scheduler state.
+- **Reminder engine:** an always-on **reminder worker** (the Railway service named `cron`) that wakes every minute, queries reminders due now and sends the corresponding pushes. Simple, restart-safe, easy to reason about: every pass is a stateless one-shot (`send_reminders.run()`) and the loop holds no scheduler state of its own. (It began as a Railway cron schedule; Railway's 5-minute floor and skipped-trigger semantics meant it fired only once per deploy in practice — see `docs/deployment.md` §4.)
 - **Auth:** a simple **login** with a **long-lived session (or PIN)** so the owner isn't re-authenticating constantly on her phone. **Do NOT use IP whitelisting** — she uses the app all day on cellular and other networks, and an IP gate would lock her out. The login is sufficient access control.
 - **Multi-user / role-aware from day one:** even though only the owner logs in during Phase 1, build the `User` model with a `role` field (`owner` / `kid`) from the start so adding kids in Phase 2 is filling in an existing model, not a retrofit.
 

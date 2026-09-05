@@ -13,5 +13,5 @@ additive migrations, no scope creep).
 
 - `frontend/` — Next.js PWA (Railway service: frontend)
 - `backend/` — FastAPI + SQLAlchemy + Alembic (Railway service: backend)
-- `backend/app/cron/` — standalone scripts deployed as their own Railway cron service
+- `backend/app/cron/` — the reminder engine: `reminder_worker.py` (always-on loop) around `send_reminders.py` (one pass), deployed as the Railway service named `cron`
 - `docs/` — spec and build prompts (source of truth, read before building)
