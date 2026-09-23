@@ -157,6 +157,18 @@ railway run --service backend python -m scripts.generate_vapid_keys
 `seed_owner.py` is idempotent on `OWNER_EMAIL` — re-running with the same email updates
 name/PIN rather than creating a duplicate.
 
+Two more live in `backend/scripts/` as PowerShell wrappers that pull the production
+credentials from Railway themselves (no `railway run`; run them from `backend/`):
+
+- `send-note.ps1 "Title" "Body"` — push a custom note to her devices right now.
+- `test-push.ps1 -In 5` — schedule a numbered **test** push that the reminder worker
+  sends at a chosen minute (`-At 15:45` for a clock time), through the same path as a
+  real nudge, without touching any in-app setting. `-Now` sends from your machine
+  (`-Device fcm|apple` targets one of her devices), `-List` shows every test's scheduled
+  and actual send time, `-Cancel` drops the pending ones. For "did the phone get it?"
+  questions, compare the send time with when the phone showed it — and remember that a
+  push the service accepted can still sit in the phone's queue while it sleeps.
+
 ## 7. Rolling back
 
 Migrations are additive-only by convention (spec §8) specifically so this stays simple:
