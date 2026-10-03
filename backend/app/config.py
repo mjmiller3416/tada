@@ -51,5 +51,14 @@ class Settings(BaseSettings):
     # service only.
     hearth_device_token: str = ""
 
+    # Orbit integration (routers/orbit.py): the shared token Orbit — Link's
+    # personal planner, a separate app — presents as
+    # `Authorization: Bearer <token>` on the /api/orbit router. Like
+    # Hearth's it authorizes the APP, not a user; the acting member rides
+    # in each request. Deliberately a separate secret from Hearth's so
+    # either integration can be revoked alone. Leave empty to disable
+    # (every /api/orbit route then returns 503). "backend" service only.
+    orbit_api_token: str = ""
+
 
 settings = Settings()

@@ -119,6 +119,7 @@ same keys on the matching Railway service (Railway dashboard → service → Var
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_CLAIMS_EMAIL` | ✓ | ✓ | |
 | `MEALGENIE_API_URL` / `MEALGENIE_API_KEY` | ✓ | | |
 | `GITHUB_TOKEN` / `GITHUB_REPO` | ✓ | | |
+| `ORBIT_API_TOKEN` | ✓ | | |
 | `NEXT_PUBLIC_API_URL` | | | ✓ |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | | | ✓ |
 
@@ -135,6 +136,11 @@ Notes:
   (spec §6).
 - Leaving `MEALGENIE_API_URL`/`MEALGENIE_API_KEY` empty disables that integration
   without breaking anything else (supplies still track status locally).
+- `ORBIT_API_TOKEN` is the shared secret Orbit (Link's planner app) sends as
+  `Authorization: Bearer <token>` on `/api/orbit/*` (`backend/app/routers/orbit.py`).
+  It must equal the matching token on Orbit's Railway service and must not reuse
+  Hearth's device token. Empty = the integration is off (every `/api/orbit` route
+  returns 503) without affecting anything else.
 - `GITHUB_TOKEN` is a fine-grained PAT with Issues: write scoped to the one repo named
   in `GITHUB_REPO` (e.g. `mjmiller3416/tada`). Leaving either empty
   disables in-app feedback's GitHub issue creation (the Settings section still submits

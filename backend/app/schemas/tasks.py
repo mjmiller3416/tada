@@ -16,8 +16,10 @@ TaskType = Literal["routine", "weekly_blessing", "zone", "maintenance", "project
 # can tell a focus session from a zone week from a campaign (SPEC §3).
 # "hearth" is the Hearth wall (docs/hearth-integration.md gap #2); the
 # String(20) column already fits it, so adding it needs no migration.
+# "orbit" is Link's planner app (routers/orbit.py), which stamps it
+# server-side; it's listed here so this stays the one canonical set.
 Source = Literal[
-    "focus_session", "direct", "guest_mode", "zone", "campaign", "hearth"
+    "focus_session", "direct", "guest_mode", "zone", "campaign", "hearth", "orbit"
 ]
 
 
