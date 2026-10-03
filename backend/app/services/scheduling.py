@@ -760,6 +760,42 @@ def _chore_needs_doing(task: Task, now: datetime, week_start: datetime) -> bool:
     return dirtiness_ratio(task, now) >= BAND_AGING
 
 
+def chore_due_at(
+    task: Task, now: datetime | None = None, tz: tzinfo | None = None
+) -> datetime:
+    """When a chore next lands on the chore surface — the forward-looking
+    inverse of `_chore_needs_doing`, for read-only planners (Orbit's
+    "upcoming", routers/orbit.py). It schedules nothing: Tada still has no
+    due dates, this just answers "when will the decay engine next put this
+    in front of them?".
+
+    - Already to-do (including never-done) → `now`.
+    - Weekly chore done this week → next Monday 00:00 in `tz` (the fixed
+      Monday reset).
+    - Any other chore → the instant its ratio reaches the freshness gate
+      (last_done_at + cadence_days × BAND_AGING).
+    - A resting (snoozed) chore → no earlier than snoozed_until, since a
+      snooze keeps it off the surface until then.
+
+    The preferred-day boost is ignored on purpose: it reorders, it never
+    makes anything due (SPEC §4)."""
+    now = now or _utcnow()
+    week_start = _local_week_start(now, tz)
+    if _chore_needs_doing(task, now, week_start):
+        due = now
+    elif task.cadence_days == WEEKLY_CADENCE_DAYS:
+        # Wall-clock add on the local-zone datetime: next Monday midnight
+        # even across a DST change.
+        due = week_start + timedelta(days=7)
+    else:
+        due = _aware(task.last_done_at) + timedelta(
+            days=task.cadence_days * BAND_AGING
+        )
+    if is_snoozed(task, now):
+        due = max(due, _aware(task.snoozed_until))
+    return due
+
+
 def _chores_eligible(
     tasks: list[Task], now: datetime, week_start: datetime
 ) -> list[Task]:
@@ -1031,6 +1067,29 @@ def undo_completion(
 
     now = now or _utcnow()
     local = tz or timezone.utc
+    check_undoable(db, log, now=now, tz=local)
+    task = db.get(Task, log.task_id)
+    task.last_done_at = log.previous_last_done_at
+    campaign_service.untick_for_undone_completion(db, log, local)
+    db.delete(log)
+    db.flush()
+    return task
+
+
+def check_undoable(
+    db: Session,
+    log: CompletionLog,
+    now: datetime | None = None,
+    tz: tzinfo | None = None,
+) -> None:
+    """The two guards undo_completion enforces, without changing anything
+    — so a read surface can say up front whether an undo would succeed
+    (Orbit's `can_undo`) using exactly the rules the undo itself applies.
+    Raises UndoWindowClosed for a completion from a previous local day
+    (via `tz`), UndoNotLatest when a newer completion of the same task
+    stands; returns None when the undo is allowed."""
+    now = now or _utcnow()
+    local = tz or timezone.utc
     if _aware(log.completed_at).astimezone(local).date() != now.astimezone(local).date():
         raise UndoWindowClosed(
             "That one's from a previous day — you can adjust the task's "
@@ -1053,12 +1112,6 @@ def undo_completion(
         raise UndoNotLatest(
             "This task was done again since — undo that newer one instead."
         )
-    task = db.get(Task, log.task_id)
-    task.last_done_at = log.previous_last_done_at
-    campaign_service.untick_for_undone_completion(db, log, local)
-    db.delete(log)
-    db.flush()
-    return task
 
 
 def snooze_task(task: Task, option: str, now: datetime | None = None) -> datetime:

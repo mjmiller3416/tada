@@ -48,3 +48,15 @@ def verify_device_token(presented: str) -> bool:
     if not configured:
         return False
     return hmac.compare_digest(presented, configured)
+
+
+def verify_orbit_token(presented: str) -> bool:
+    """Whether `presented` matches the configured Orbit API token
+    (routers/orbit.py). The same shape as verify_device_token but a
+    separate secret, so revoking Orbit never touches the Hearth wall.
+    Constant-time; False when the integration is disabled (no token set),
+    so an empty bearer can never unlock an unconfigured backend."""
+    configured = settings.orbit_api_token
+    if not configured:
+        return False
+    return hmac.compare_digest(presented.encode("utf-8"), configured.encode("utf-8"))
