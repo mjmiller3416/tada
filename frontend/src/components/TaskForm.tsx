@@ -105,6 +105,8 @@ export default function TaskForm({
     task?.assignee_id ?? null,
   );
   const [claimable, setClaimable] = useState(task?.claimable ?? false);
+  // Parent check: a kid's Done waits for a grown-up to take a look.
+  const [needsCheck, setNeedsCheck] = useState(task?.needs_check ?? false);
   const [supplyIds, setSupplyIds] = useState<number[]>(
     task ? task.supplies.map((s) => s.id) : [],
   );
@@ -167,6 +169,7 @@ export default function TaskForm({
             ? { assignee_id: assigneeId }
             : { clear_assignee: true }),
           claimable,
+          needs_check: needsCheck,
           supply_ids: supplyIds,
           notes: notes.trim() || null,
           is_active: isActive,
@@ -189,6 +192,7 @@ export default function TaskForm({
           preferred_day: preferredDay,
           assignee_id: assigneeId,
           claimable,
+          needs_check: needsCheck,
           supply_ids: supplyIds,
           notes: notes.trim() || null,
         });
@@ -408,6 +412,26 @@ export default function TaskForm({
                   />
                   Let the kids claim this one
                 </label>
+              )}
+              {/* Parent check: off unless she turns it on. Shown whenever
+                  there are kids, or if it's already on. */}
+              {(kids.length > 0 || needsCheck) && (
+                <>
+                  <label className={styles.toggleRow}>
+                    <input
+                      type="checkbox"
+                      checked={needsCheck}
+                      onChange={(e) => setNeedsCheck(e.target.checked)}
+                    />
+                    Needs a parent check
+                  </label>
+                  {needsCheck && (
+                    <span className={styles.hint}>
+                      When a kid taps Done, it waits on your “Ready for a
+                      check” list until you’ve had a look.
+                    </span>
+                  )}
+                </>
               )}
             </div>
           )}

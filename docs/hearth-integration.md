@@ -116,6 +116,20 @@ Hearth treats any non-2xx as "couldn't undo" and reconciles on the next poll.
 // 204 (no body)
 ```
 
+### Parent check (added 2026-11-14, optional fields only)
+A chore can need a parent check (Tada's `needs_check`). A kid's completion of
+one — from the wall too — is "ready to check" until a parent marks it checked
+or sends it back. Every existing field keeps its shape and meaning; one
+optional `checkStatus` (string or null) is added:
+- `/complete` response: `"ready"` when the chore now waits for a check, else null.
+- `/kids` chores: on a done chore `"ready"` (waiting for a parent to look) or
+  `"checked"`; on an outstanding chore `"sent_back"` (a parent sent it back for
+  another go); else null. A sent-back completion doesn't count as done, so its
+  chore is outstanding again (`done: false`, no `completionId`).
+- `/done-today` completions: `"ready"` / `"checked"` / null; sent-back
+  completions aren't listed.
+- `/undo` of a completion a parent already checked or sent back is `409`.
+
 ---
 
 ## Once it's live — operator setup

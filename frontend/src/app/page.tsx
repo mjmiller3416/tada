@@ -13,6 +13,7 @@ import {
   afterPendingWrites,
   completeTask,
   getCampaigns,
+  getChecks,
   getFocus,
   getSettings,
   getZones,
@@ -87,6 +88,15 @@ function HomeScreen({ firstName }: { firstName: string }) {
   // restarts; the ref holds the completion an undo would reverse.
   const [undoKey, setUndoKey] = useState<number | null>(null);
   const undoCompletionIdRef = useRef<number | null>(null);
+  // Parent check: how many finished chores wait for her to take a look.
+  // Only ever a quiet door to the list on Done Today, never a nag.
+  const [toCheck, setToCheck] = useState(0);
+
+  const loadChecks = useCallback(() => {
+    getChecks()
+      .then((r) => setToCheck(r.waiting.length))
+      .catch(() => setToCheck(0));
+  }, []);
 
   const loadFocus = useCallback((filter: EffortFilter) => {
     // Order behind any in-flight Done/Undo posts (e.g. an undo tapped
@@ -102,15 +112,22 @@ function HomeScreen({ firstName }: { firstName: string }) {
     loadFocus(effort);
   }, [effort, loadFocus]);
 
+  useEffect(() => {
+    loadChecks();
+  }, [loadChecks]);
+
   // A PWA rarely restarts — refresh the list whenever the app returns
   // to the foreground so it never shows a stale morning.
   useEffect(() => {
     function onVisibility() {
-      if (document.visibilityState === "visible") loadFocus(effort);
+      if (document.visibilityState === "visible") {
+        loadFocus(effort);
+        loadChecks();
+      }
     }
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [effort, loadFocus]);
+  }, [effort, loadFocus, loadChecks]);
 
   useEffect(() => {
     // The overlays (SPEC §6, Phase 3) only ever appear when opted in —
@@ -515,6 +532,14 @@ function HomeScreen({ firstName }: { firstName: string }) {
       {/* ---- Done Today (Phase 5): the home screen's ONE new element —
            a quiet door to the rewards. Streaks and badges live behind
            it, never out here; the calm home screen is the product. ---- */}
+      {/* Parent check: a quiet door to the To check list, only while
+           something is actually waiting. */}
+      {toCheck > 0 && (
+        <Link href="/done-today#to-check" className={styles.doneTodayLink}>
+          👀 {toCheck} {toCheck === 1 ? "chore" : "chores"} ready for a check
+        </Link>
+      )}
+
       {focus !== null && !needsSetup && (
         <Link href="/done-today" className={styles.doneTodayLink}>
           ✨ See what you’ve gotten done today

@@ -17,6 +17,11 @@ class DoneTodayEntry(BaseModel):
     completed_by_id: int
     completed_by_name: str
     source: str
+    # Parent check: "ready" (waiting for a parent to look) or "checked"
+    # (with who checked it); null for an ordinary completion. Sent-back
+    # completions aren't listed at all — they weren't done.
+    check_status: str | None = None
+    checked_by_name: str | None = None
 
 
 class DoneTodayResponse(BaseModel):

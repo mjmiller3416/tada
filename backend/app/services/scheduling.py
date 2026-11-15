@@ -991,12 +991,19 @@ def complete_task(
     user: User,
     source: str,
     now: datetime | None = None,
+    check_status: str | None = None,
 ) -> CompletionLog:
     """Completion (SPEC §4): reset the decay curve, clear any snooze, and
     write the permanent CompletionLog row. Phase 5 rides the same seam:
     the streak advances and badges are checked here, so every completion
     path — home screen, sessions, kid chores, overlays — counts exactly
-    once. Caller commits."""
+    once. Caller commits.
+
+    `check_status="ready"` (parent check) writes the row as waiting for a
+    parent's inspection. The decay reset happens HERE all the same: the
+    work happened now, and decay measures time since the work was done,
+    not since someone looked at it. A send-back reverses it exactly as
+    undo would (services/parent_check.py)."""
     # Local import: the reward layer reads settings and history; keeping
     # it out of the module scope keeps the decay engine itself pure.
     from app.services import badges as badge_service
@@ -1015,6 +1022,7 @@ def complete_task(
         completed_at=now,
         source=source,
         previous_last_done_at=previous_last_done_at,
+        check_status=check_status,
     )
     db.add(log)
     db.flush()  # the badge checks below count this completion too
@@ -1024,16 +1032,28 @@ def complete_task(
     return log
 
 
-class UndoWindowClosed(Exception):
+class UndoRefused(Exception):
+    """Base for every reason undo_completion says no; callers catch this
+    and answer 409 with the message."""
+
+
+class UndoWindowClosed(UndoRefused):
     """An undo was asked of a completion from a previous day. Older
     corrections go through the Phase 4.6 last-done editor instead."""
 
 
-class UndoNotLatest(Exception):
+class UndoNotLatest(UndoRefused):
     """An undo was asked of a completion that isn't the task's most
     recent (issue #15). Restoring ITS previous_last_done_at would rewind
     the decay state right past a newer completion that still stands —
     the task would instantly read overdue despite being just done."""
+
+
+class UndoAfterCheck(UndoRefused):
+    """An undo was asked of a completion a parent has already checked or
+    sent back. The parent's verdict is undone first (POST
+    /api/completions/{id}/uncheck), which returns it to "ready"; a kid
+    can't erase a parent's check by undoing their own Done."""
 
 
 def undo_completion(
@@ -1087,14 +1107,29 @@ def check_undoable(
     (Orbit's `can_undo`) using exactly the rules the undo itself applies.
     Raises UndoWindowClosed for a completion from a previous local day
     (via `tz`), UndoNotLatest when a newer completion of the same task
-    stands; returns None when the undo is allowed."""
+    stands, UndoAfterCheck when a parent has already checked it or sent
+    it back; returns None when the undo is allowed."""
     now = now or _utcnow()
     local = tz or timezone.utc
+    if log.check_status in ("checked", "sent_back"):
+        raise UndoAfterCheck(
+            "A parent already looked at this one — undo the check first."
+        )
     if _aware(log.completed_at).astimezone(local).date() != now.astimezone(local).date():
         raise UndoWindowClosed(
             "That one's from a previous day — you can adjust the task's "
             "last-done date instead."
         )
+    if has_newer_completion(db, log):
+        raise UndoNotLatest(
+            "This task was done again since — undo that newer one instead."
+        )
+
+
+def has_newer_completion(db: Session, log: CompletionLog) -> bool:
+    """Whether a later completion of the same task stands (issue #15) —
+    later by completed_at, ties broken by id. Undo and the parent check
+    both refuse to rewind decay state past a newer completion."""
     newer = db.scalar(
         select(CompletionLog.id)
         .where(
@@ -1108,10 +1143,7 @@ def check_undoable(
         )
         .limit(1)
     )
-    if newer is not None:
-        raise UndoNotLatest(
-            "This task was done again since — undo that newer one instead."
-        )
+    return newer is not None
 
 
 def snooze_task(task: Task, option: str, now: datetime | None = None) -> datetime:

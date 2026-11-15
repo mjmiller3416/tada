@@ -1,0 +1,88 @@
+/* The parents' "To check" list (parent check): small, calm, and only
+   there when something is waiting. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.hint {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.grow {
+  flex: 1;
+}
+
+.sendBack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.noteLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-ink-soft);
+}
+
+.note {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-base); /* 16px: no iOS zoom on focus */
+  resize: vertical;
+}
+
+.note:focus {
+  outline: none;
+  border-color: var(--color-purple);
+}

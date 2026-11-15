@@ -182,6 +182,7 @@ def done_today(
                 taskName=log.task.name,
                 room=log.task.room.name if log.task.room else None,
                 completedAt=_localize(log.completed_at, tz),
+                checkStatus=log.check_status,
             )
             for log in logs
         ]
@@ -210,6 +211,7 @@ def kids(
                             if entry["completion_id"] is not None
                             else None
                         ),
+                        checkStatus=entry["check_status"],
                     )
                     for entry in entries
                 ],
@@ -242,7 +244,11 @@ def complete(
     completion_id = completion.record_completion(db, task, member, req.source)
     db.commit()
     completion.notify_owner_if_kid(db, member, task, completion_id)
-    return HearthCompleteResponse(completionId=str(completion_id))
+    log = db.get(CompletionLog, completion_id)
+    return HearthCompleteResponse(
+        completionId=str(completion_id),
+        checkStatus=log.check_status if log is not None else None,
+    )
 
 
 @router.post("/undo", status_code=status.HTTP_204_NO_CONTENT)
@@ -267,6 +273,6 @@ def undo(
         scheduling.undo_completion(
             db, log, tz=settings_service.user_timezone(db, member.id)
         )
-    except (scheduling.UndoWindowClosed, scheduling.UndoNotLatest) as exc:
+    except scheduling.UndoRefused as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
     db.commit()

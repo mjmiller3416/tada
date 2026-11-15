@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
+import ToCheck from "@/components/ToCheck";
 import {
   afterPendingWrites,
   getDoneToday,
   trackWrite,
+  undoCheck,
   undoCompletion,
   type DoneTodayEntry,
   type DoneTodayResponse,
@@ -43,6 +45,8 @@ export default function DoneTodayPage() {
 function DoneTodayScreen() {
   const [data, setData] = useState<DoneTodayResponse | null>(null);
   const [newBadgeIds, setNewBadgeIds] = useState<Set<number>>(new Set());
+  // Bumped to re-mount the To check list when a check changes here.
+  const [checkRefresh, setCheckRefresh] = useState(0);
 
   const load = useCallback(() => {
     // Order behind in-flight Done/Undo posts — arriving here straight
@@ -88,6 +92,17 @@ function DoneTodayScreen() {
    * was the only one, the normal warm empty state simply returns, with
    * no mention of the undo. */
   function handleUndo(entry: DoneTodayEntry) {
+    if (entry.check_status === "checked") {
+      // A checked chore's Undo takes back the check (parent check): it
+      // stays done and goes back to waiting on the To check list above.
+      trackWrite(undoCheck(entry.id))
+        .catch(() => {})
+        .finally(() => {
+          load();
+          setCheckRefresh((n) => n + 1);
+        });
+      return;
+    }
     setData(
       (current) =>
         current && {
@@ -97,7 +112,12 @@ function DoneTodayScreen() {
     );
     // Quietly resync if the server disagrees (e.g. the day rolled over).
     // Tracked, so the home screen she returns to orders behind it.
-    trackWrite(undoCompletion(entry.id)).catch(() => load());
+    trackWrite(undoCompletion(entry.id))
+      .catch(() => load())
+      .finally(() => {
+        // A chore that was waiting for a check leaves the To check list too.
+        if (entry.check_status === "ready") setCheckRefresh((n) => n + 1);
+      });
   }
 
   function timeOf(iso: string): string {
@@ -109,6 +129,10 @@ function DoneTodayScreen() {
 
   return (
     <AppShell title="Done today" nav={NAV_ITEMS}>
+      {/* Parent check: what's waiting for a grown-up to look at. Renders
+          nothing at all when the list is empty. */}
+      <ToCheck key={checkRefresh} onChanged={load} />
+
       {data === null ? (
         <p className={styles.quiet}>Gathering today’s ta-das…</p>
       ) : (
@@ -157,6 +181,14 @@ function DoneTodayScreen() {
                       {data.household_members > 1 &&
                         ` · ${entry.completed_by_name}`}
                     </p>
+                    {entry.check_status === "ready" && (
+                      <p className={styles.checkLine}>👀 Waiting for a check</p>
+                    )}
+                    {entry.check_status === "checked" && (
+                      <p className={styles.checkLine}>
+                        ✓ Checked{entry.checked_by_name ? ` by ${entry.checked_by_name}` : ""}
+                      </p>
+                    )}
                   </div>
                   {entry.room_name && (
                     <Chip tone={roomTone(entry.room_id)}>{entry.room_name}</Chip>
@@ -167,9 +199,13 @@ function DoneTodayScreen() {
                     type="button"
                     className={styles.undoLink}
                     onClick={() => handleUndo(entry)}
-                    aria-label={`Undo ${entry.task_name}`}
+                    aria-label={
+                      entry.check_status === "checked"
+                        ? `Undo the check on ${entry.task_name}`
+                        : `Undo ${entry.task_name}`
+                    }
                   >
-                    Undo
+                    {entry.check_status === "checked" ? "Undo check" : "Undo"}
                   </button>
                 </Card>
               ))}

@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models.completion_log import CompletionLog
 from app.models.task import Task
 from app.services import scheduling
 
@@ -45,6 +46,8 @@ class TaskCreate(BaseModel):
     guest_facing: bool = False
     assignee_id: int | None = None
     claimable: bool = False
+    # Parent check: a kid's Done waits for a parent to inspect it.
+    needs_check: bool = False
     supply_ids: list[int] | None = None
     notes: str | None = None
     # "Usually a Saturday job" (Phase 8): Monday = 0 ... Sunday = 6.
@@ -67,6 +70,7 @@ class TaskUpdate(BaseModel):
     assignee_id: int | None = None
     clear_assignee: bool = False  # same pattern as clear_room
     claimable: bool | None = None
+    needs_check: bool | None = None
     supply_ids: list[int] | None = None
     notes: str | None = None
     is_active: bool | None = None
@@ -128,16 +132,29 @@ class TaskRead(BaseModel):
     ratio: float
     band: str  # a SPEC §4 color band, or "waiting" (Phase 11, see above)
     zone_name: str | None = None
+    # Parent check (services/parent_check.py). `needs_check` is the task's
+    # setting. The other three describe the task's latest completion and
+    # are filled only on surfaces that ask (the chore view, a completion's
+    # response): "ready" = waiting for a parent to look, "sent_back" = a
+    # parent sent it back (it's due again; `check_note` says why), null =
+    # nothing pending. `check_completion_id` is the completion they refer to.
+    needs_check: bool = False
+    check_status: str | None = None
+    check_note: str | None = None
+    check_completion_id: int | None = None
 
 
 def task_to_read(
     task: Task,
     now: datetime | None = None,
     ctx: "scheduling.ZoneWindowContext | None" = None,
+    check: "CompletionLog | None" = None,
 ) -> TaskRead:
     """`ctx` (from scheduling.presentation_context) is None whenever the
     lanes are off, so every legacy surface serializes exactly as before —
-    only lanes-active reads present the waiting state."""
+    only lanes-active reads present the waiting state. `check` is the
+    task's pending parent-check completion (parent_check.pending_states),
+    when the surface shows it."""
     ratio = scheduling.dirtiness_ratio(task, now)
     band = scheduling.band_for_ratio(ratio)
     if not scheduling.in_zone_window(task, ctx):
@@ -168,6 +185,10 @@ def task_to_read(
         ratio=round(ratio, 3),
         band=band,
         zone_name=scheduling.window_zone_name(task, ctx),
+        needs_check=bool(task.needs_check),
+        check_status=check.check_status if check is not None else None,
+        check_note=check.check_note if check is not None else None,
+        check_completion_id=check.id if check is not None else None,
     )
 
 

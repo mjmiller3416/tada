@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -32,6 +32,11 @@ class Task(Base):
     within the pool); project is manual-only and never enters automatic
     selection. Phase 11's composer reads it behind zone_lane_enabled,
     and the review UI (task form + planning rows) edits it.
+
+    `needs_check` (parent check, migration 0014): when on, a kid's Done
+    becomes "ready to check" — a completion a parent still has to
+    inspect (services/parent_check.py). Off by default, so a task that
+    doesn't opt in completes exactly as it always has.
     """
 
     __tablename__ = "tasks"
@@ -70,6 +75,9 @@ class Task(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     claimable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    needs_check: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

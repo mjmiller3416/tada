@@ -39,6 +39,8 @@ INSTRUCTIONS = (
     "Tada is the household's cleaning coach. Tasks don't have due dates: each one decays "
     "from fresh to overdue based on how long since it was last done versus its cadence, and "
     "completing it resets the clock. Call get_overview first. Use list_* tools to find ids. "
+    "Chores can need a parent check: \"checked\" means an adult physically inspected it, so "
+    "only mark_checked when the parent says they looked. "
     "Be warm and never guilt-tripping: snoozing or skipping is always fine."
 )
 _INTERNAL_BASE = "http://tada.internal"
@@ -250,6 +252,7 @@ async def _overview(client: httpx.AsyncClient, user_role: str) -> dict:
     supplies = await _call_route(client, "GET", "/api/supplies")
     app_settings = await _call_route(client, "GET", "/api/settings")
     chores = await _call_route(client, "GET", "/api/chores")
+    checks = await _call_route(client, "GET", "/api/checks")
     return {
         "you": me,
         "focus_tasks": focus["tasks"],
@@ -263,6 +266,7 @@ async def _overview(client: httpx.AsyncClient, user_role: str) -> dict:
         "rooms_needing_attention": [r for r in rooms if r.get("due_count")],
         "supplies_low_or_out": [s for s in supplies if s.get("status") in ("low", "out")],
         "my_assigned_chores": chores["mine"],
+        "waiting_for_parent_check": checks["waiting"],
         "settings": app_settings,
     }
 

@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
+from app.models.completion_log import CompletionLog
 from app.models.room import Room
 from app.models.supply import Supply
 from app.models.task import Task
@@ -113,6 +114,7 @@ def create_task(
         preferred_day=payload.preferred_day,
         assignee_id=payload.assignee_id,
         claimable=payload.claimable,
+        needs_check=payload.needs_check,
         notes=payload.notes,
     )
     if payload.supply_ids:
@@ -171,6 +173,10 @@ def update_task(
         task.assignee_id = payload.assignee_id
     if payload.claimable is not None:
         task.claimable = payload.claimable
+    if payload.needs_check is not None:
+        # Turning it off leaves any completion already waiting as it is: a
+        # parent can still check or send it back from the To check list.
+        task.needs_check = payload.needs_check
     if payload.supply_ids is not None:
         task.supplies = _fetch_supplies(db, payload.supply_ids)
     if payload.notes is not None:
@@ -217,20 +223,58 @@ def complete_task(
 
     The completion side-effects (campaign tick, decay reset, reminder
     clear, owner brag) live in services/completion.py so every completion
-    path — here, and the Hearth wall — behaves identically."""
+    path — here, and the Hearth wall — behaves identically. On a task
+    that needs a parent check, a kid's Done is written as "ready to check"
+    (`check_status` in the response says so)."""
+    return _complete(db, task_id, current_user, payload.source, ready_for_check=None)
+
+
+@router.post("/{task_id}/ready-for-check", response_model=CompleteResponse)
+def ready_for_check(
+    task_id: int,
+    payload: CompleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CompleteResponse:
+    """"I'm done, can you check it?" (parent check). A completion like any
+    other — the decay resets now, because the work happened now — written
+    as waiting for a parent to inspect it. Whoever may check the chore off
+    may ask for a check, whether or not the task has needs_check on (a
+    plain Done does this by itself for a kid on a needs_check task). Asking
+    again while it's already waiting returns the same completion."""
+    return _complete(db, task_id, current_user, payload.source, ready_for_check=True)
+
+
+def _complete(
+    db: Session,
+    task_id: int,
+    user: User,
+    source: str,
+    ready_for_check: bool | None,
+) -> CompleteResponse:
+    """The shared body of complete and ready-for-check: permission, the
+    one completion path, the owner's push after commit, and the task back
+    with the completion's id (the undo handle) and its check state."""
     task = _get_task(db, task_id)
-    if not completion.can_complete(task, current_user):
+    if not completion.can_complete(task, user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "That one isn't yours to check off")
 
-    completion_id = completion.record_completion(db, task, current_user, payload.source)
+    completion_id = completion.record_completion(
+        db, task, user, source, ready_for_check=ready_for_check
+    )
     db.commit()
     # After the commit, so the completion is durable no matter what the
     # push service does; shielded inside the helper (issue #24).
-    completion.notify_owner_if_kid(db, current_user, task, completion_id)
+    completion.notify_owner_if_kid(db, user, task, completion_id)
 
     db.refresh(task)
+    log = db.get(CompletionLog, completion_id)
     return CompleteResponse(
-        **task_to_read(task, ctx=_ctx(db, current_user)).model_dump(),
+        **task_to_read(
+            task,
+            ctx=_ctx(db, user),
+            check=log if log is not None and log.check_status else None,
+        ).model_dump(),
         completion_id=completion_id,
     )
 

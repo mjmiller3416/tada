@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.completion_log import CompletionLog
 from app.models.task import Task
 from app.models.user import User
-from app.services import scheduling, settings_service
+from app.services import parent_check, scheduling, settings_service
 
 #: How far ahead "upcoming" looks, in days after today.
 UPCOMING_DAYS = 7
@@ -120,6 +120,7 @@ def _member_logs(
                 CompletionLog.completed_by == member_id,
                 CompletionLog.completed_at >= start,
                 CompletionLog.completed_at < end,
+                parent_check.counts_as_done(),  # a sent-back chore wasn't done
             )
             .order_by(CompletionLog.completed_at.desc(), CompletionLog.id.desc())
         ).all()
@@ -171,7 +172,7 @@ def _can_undo(db: Session, log: CompletionLog, member: User, now: datetime) -> b
         scheduling.check_undoable(
             db, log, now=now, tz=settings_service.user_timezone(db, member.id)
         )
-    except (scheduling.UndoWindowClosed, scheduling.UndoNotLatest):
+    except scheduling.UndoRefused:
         return False
     return True
 
@@ -239,6 +240,7 @@ def member_board(
         select(func.count(CompletionLog.id)).where(
             CompletionLog.completed_by == member.id,
             CompletionLog.completed_at >= week_start,
+            parent_check.counts_as_done(),
         )
     )
     return MemberBoard(

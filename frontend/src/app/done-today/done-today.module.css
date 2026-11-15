@@ -168,3 +168,11 @@
   color: var(--color-ink-soft);
   overflow-wrap: anywhere;
 }
+
+/* Parent check: the line under a completion that asked for one. */
+.checkLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-purple);
+}

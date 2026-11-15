@@ -94,3 +94,33 @@
 .logout {
   margin-top: var(--space-4);
 }
+
+/* ---- Parent check ---- */
+
+.waitingLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-purple);
+}
+
+/* Sent back: a soft warm note, never an alarm. */
+.sentBack {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-coral-soft);
+}
+
+.sentBackTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-ink);
+}
+
+.sentBackNote {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}

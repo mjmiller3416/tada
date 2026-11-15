@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.completion_log import CompletionLog
 from app.models.task import Task
 from app.models.user import User
-from app.services import scheduling
+from app.services import parent_check, scheduling
 
 
 def _local_day_bounds(tz: tzinfo) -> tuple[datetime, datetime]:
@@ -41,6 +41,7 @@ def member_completions_today(
                 CompletionLog.completed_by == member_id,
                 CompletionLog.completed_at >= day_start,
                 CompletionLog.completed_at < day_end,
+                parent_check.counts_as_done(),  # a sent-back chore wasn't done
             )
             .order_by(CompletionLog.completed_at.desc())
         ).all()
@@ -62,8 +63,12 @@ def kids_chores(
     Deduped by task, completed winning: a daily chore checked off this
     morning can re-age past the freshness gate by evening and reappear in
     `mine`, but "you did it today" is the honest thing to show, so it is
-    listed once, done. Each entry is {task, done, completion_id}; the
-    completion_id is the undo handle for a done chore, None otherwise."""
+    listed once, done. Each entry is {task, done, completion_id,
+    check_status}; the completion_id is the undo handle for a done chore,
+    None otherwise. check_status is the parent check (services/
+    parent_check.py): "ready" or "checked" on a done chore, "sent_back" on
+    an outstanding one a parent sent back, else None. A sent-back
+    completion doesn't count as done, so its chore is outstanding again."""
     day_start, day_end = _local_day_bounds(tz)
     kids = db.scalars(
         select(User).where(User.role == "kid").order_by(User.id)
@@ -78,6 +83,7 @@ def kids_chores(
                 CompletionLog.completed_by == kid.id,
                 CompletionLog.completed_at >= day_start,
                 CompletionLog.completed_at < day_end,
+                parent_check.counts_as_done(),  # a sent-back chore is due again
             )
             .order_by(CompletionLog.completed_at.desc())
         ).all()
@@ -88,13 +94,29 @@ def kids_chores(
             done_by_task.setdefault(log.task_id, log)
 
         mine, _ = scheduling.chores_for_user(db, kid.id, tz=tz)
+        pending = parent_check.pending_states(db, [task.id for task in mine])
         entries: list[dict] = [
-            {"task": task, "done": False, "completion_id": None}
+            {
+                "task": task,
+                "done": False,
+                "completion_id": None,
+                "check_status": (
+                    parent_check.SENT_BACK
+                    if task.id in pending
+                    and pending[task.id].check_status == parent_check.SENT_BACK
+                    else None
+                ),
+            }
             for task in mine
             if task.id not in done_by_task  # completed today wins
         ]
         entries += [
-            {"task": log.task, "done": True, "completion_id": log.id}
+            {
+                "task": log.task,
+                "done": True,
+                "completion_id": log.id,
+                "check_status": log.check_status,
+            }
             for log in done_by_task.values()
         ]
         boards.append((kid, entries))

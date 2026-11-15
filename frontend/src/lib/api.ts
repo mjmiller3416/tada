@@ -201,7 +201,17 @@ export type Task = {
    * only): the home card's "This week's Kitchen mission" label and the
    * "waits for Kitchen week" copy both read it. Null otherwise. */
   zone_name: string | null;
+  /** Parent check: a kid's Done waits for a grown-up to take a look. */
+  needs_check: boolean;
+  /** The latest completion's check, on the chore view and a completion's
+   * response only: "ready" = waiting for a parent to look, "sent_back" =
+   * a parent sent it back (it's due again, `check_note` says why). */
+  check_status: CheckStatus | null;
+  check_note: string | null;
+  check_completion_id: number | null;
 };
+
+export type CheckStatus = "ready" | "checked" | "sent_back";
 
 export type TaskInput = {
   name: string;
@@ -214,6 +224,7 @@ export type TaskInput = {
   effort: Effort;
   assignee_id?: number | null;
   claimable?: boolean;
+  needs_check?: boolean;
   supply_ids?: number[];
   notes?: string | null;
   preferred_day?: number | null;
@@ -286,6 +297,60 @@ export function completeTask(id: number, source: CompletionSource) {
   return apiFetch<CompleteResponse>(`/api/tasks/${id}/complete`, {
     method: "POST",
     body: JSON.stringify({ source }),
+  });
+}
+
+/** "I'm done, can you check it?" — a completion that waits for a parent
+ * to inspect it. (A kid's plain Done on a needs_check task does the same.) */
+export function readyForCheck(id: number, source: CompletionSource = "direct") {
+  return apiFetch<CompleteResponse>(`/api/tasks/${id}/ready-for-check`, {
+    method: "POST",
+    body: JSON.stringify({ source }),
+  });
+}
+
+/* ---- Parent check (adults only) ---- */
+
+export type CheckItem = {
+  completion_id: number;
+  task_id: number;
+  task_name: string;
+  room_id: number | null;
+  room_name: string | null;
+  done_by_id: number;
+  done_by_name: string;
+  done_at: string;
+  status: CheckStatus;
+  checked_by_id: number | null;
+  checked_by_name: string | null;
+  checked_at: string | null;
+  note: string | null;
+};
+
+/** What's waiting for a parent to look at, longest-waiting first. */
+export function getChecks() {
+  return apiFetch<{ waiting: CheckItem[] }>("/api/checks");
+}
+
+/** A parent physically looked at it and it's good. */
+export function markChecked(completionId: number) {
+  return apiFetch<CheckItem>(`/api/checks/${completionId}/checked`, {
+    method: "POST",
+  });
+}
+
+/** Not quite: the chore is due again, with an optional note for the kid. */
+export function sendBack(completionId: number, note: string) {
+  return apiFetch<CheckItem>(`/api/checks/${completionId}/send-back`, {
+    method: "POST",
+    body: JSON.stringify({ note: note.trim() || null }),
+  });
+}
+
+/** Take back "checked" or "sent back" — it waits for a check again. */
+export function undoCheck(completionId: number) {
+  return apiFetch<CheckItem>(`/api/checks/${completionId}/undo`, {
+    method: "POST",
   });
 }
 
@@ -437,6 +502,10 @@ export type DoneTodayEntry = {
   completed_by_id: number;
   completed_by_name: string;
   source: CompletionSource;
+  /** Parent check: "ready" (waiting for a look) or "checked"; null for an
+   * ordinary completion. Sent-back ones aren't listed — they weren't done. */
+  check_status: CheckStatus | null;
+  checked_by_name: string | null;
 };
 
 export type DoneTodayResponse = {
@@ -486,6 +555,8 @@ export function updateSettings(input: Partial<Settings>) {
 export type ChoresResponse = {
   mine: Task[];
   up_for_grabs: Task[];
+  /** Parent check: my chores that are done and waiting for a grown-up. */
+  waiting_for_check: Task[];
 };
 
 export function getChores() {

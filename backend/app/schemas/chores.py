@@ -9,3 +9,6 @@ class ChoresResponse(BaseModel):
 
     mine: list[TaskRead]
     up_for_grabs: list[TaskRead]
+    # Parent check: my chores that are done and waiting for a parent to
+    # look (check_status "ready"). Additive — older clients ignore it.
+    waiting_for_check: list[TaskRead] = []

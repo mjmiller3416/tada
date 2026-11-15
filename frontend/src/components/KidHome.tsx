@@ -34,7 +34,7 @@ export default function KidHome({ firstName }: { firstName: string }) {
   const load = useCallback(() => {
     getChores()
       .then(setChores)
-      .catch(() => setChores({ mine: [], up_for_grabs: [] }));
+      .catch(() => setChores({ mine: [], up_for_grabs: [], waiting_for_check: [] }));
   }, []);
 
   useEffect(() => {
@@ -84,6 +84,8 @@ export default function KidHome({ firstName }: { firstName: string }) {
   const loading = chores === null;
   const nothingToDo =
     chores !== null && chores.mine.length === 0 && chores.up_for_grabs.length === 0;
+  // Parent check: done chores a grown-up hasn't looked at yet.
+  const waiting = chores?.waiting_for_check ?? [];
 
   return (
     <AppShell>
@@ -93,7 +95,9 @@ export default function KidHome({ firstName }: { firstName: string }) {
         <h1 className={styles.hello}>Hi, {firstName} 👋</h1>
         <p className={styles.subline}>
           {nothingToDo
-            ? "No chores right now — enjoy it! 🎉"
+            ? waiting.length > 0
+              ? "All done! Just waiting for a grown-up to take a look 👀"
+              : "No chores right now — enjoy it! 🎉"
             : "Here’s what would really help today."}
         </p>
       </header>
@@ -133,7 +137,29 @@ export default function KidHome({ firstName }: { firstName: string }) {
         </section>
       )}
 
-      {nothingToDo && (
+      {/* Parent check: done, and waiting for a grown-up to take a look.
+          No buttons — there's nothing left for the kid to do here. */}
+      {!loading && waiting.length > 0 && (
+        <section className={styles.section} aria-label="Waiting for a check">
+          <h2 className={styles.sectionTitle}>Waiting for a check</h2>
+          <p className={styles.sectionHint}>
+            Nice work! A grown-up will take a look soon.
+          </p>
+          {waiting.map((task) => (
+            <Card key={task.id} className={styles.choreCard}>
+              <div className={styles.choreTop}>
+                <span className={styles.choreName}>{task.name}</span>
+                {task.room_name && (
+                  <Chip tone={roomTone(task.room_id)}>{task.room_name}</Chip>
+                )}
+              </div>
+              <p className={styles.waitingLine}>👀 Waiting for a check</p>
+            </Card>
+          ))}
+        </section>
+      )}
+
+      {nothingToDo && waiting.length === 0 && (
         <Card padding="lg" className={styles.emptyCard}>
           <p className={styles.emptyEmoji}>🌟</p>
           <p className={styles.emptyText}>
@@ -172,7 +198,20 @@ function ChoreCard({
           <Chip tone={roomTone(task.room_id)}>{task.room_name}</Chip>
         )}
       </div>
-      <p className={styles.choreMeta}>about {task.estimated_minutes} min</p>
+      {/* Parent check: a grown-up sent it back — say so kindly, with
+          their note, so the second go knows what to fix. */}
+      {task.check_status === "sent_back" && (
+        <div className={styles.sentBack}>
+          <p className={styles.sentBackTitle}>🔁 Needs another go</p>
+          {task.check_note && (
+            <p className={styles.sentBackNote}>“{task.check_note}”</p>
+          )}
+        </div>
+      )}
+      <p className={styles.choreMeta}>
+        about {task.estimated_minutes} min
+        {task.needs_check && " · a grown-up will check it"}
+      </p>
       <div className={styles.choreActions}>
         <span className={styles.burstAnchor}>
           <Burst play={celebrating} />

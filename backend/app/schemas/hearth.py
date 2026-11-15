@@ -42,6 +42,9 @@ class HearthCompletion(BaseModel):
     taskName: str
     room: str | None
     completedAt: datetime  # in the member's timezone, so the ISO offset is local
+    # Parent check (optional, additive): "ready" = waiting for a parent to
+    # look, "checked" = a parent inspected it; null = an ordinary completion.
+    checkStatus: str | None = None
 
 
 class HearthDoneTodayResponse(BaseModel):
@@ -53,6 +56,10 @@ class HearthKidChore(BaseModel):
     name: str
     done: bool
     completionId: str | None = None  # the undo handle, present only when done
+    # Parent check (optional, additive): on a done chore "ready" (waiting
+    # for a parent to look) or "checked"; on an outstanding one
+    # "sent_back" (a parent sent it back for another go); else null.
+    checkStatus: str | None = None
 
 
 class HearthKid(BaseModel):
@@ -72,6 +79,9 @@ class HearthCompleteRequest(BaseModel):
 
 class HearthCompleteResponse(BaseModel):
     completionId: str
+    # "ready" when the chore needs a parent check and now waits for one;
+    # null for an ordinary completion. Optional, additive.
+    checkStatus: str | None = None
 
 
 class HearthUndoRequest(BaseModel):

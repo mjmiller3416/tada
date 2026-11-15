@@ -10,7 +10,7 @@ day across the window.
 import math
 from datetime import date, timezone, tzinfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.campaign import Campaign, CampaignTask
@@ -130,7 +130,14 @@ def untick_for_undone_completion(
         local_day(completed_at)
         for completed_at in db.scalars(
             select(CompletionLog.completed_at).where(
-                CompletionLog.task_id == log.task_id, CompletionLog.id != log.id
+                CompletionLog.task_id == log.task_id,
+                CompletionLog.id != log.id,
+                # A sent-back completion (parent check) was never really
+                # done, so it can't keep a campaign tick alive either.
+                or_(
+                    CompletionLog.check_status.is_(None),
+                    CompletionLog.check_status != "sent_back",
+                ),
             )
         ).all()
     }

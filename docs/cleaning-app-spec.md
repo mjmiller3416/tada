@@ -78,6 +78,7 @@ Task                        # the central entity
   preferred_day: int (nullable)        # Phase 8: Mon=0..Sun=6; a ranking BOOST, never a due date
   last_done_at: timestamp (nullable)   # null = never done
   assignee_id -> User (nullable)
+  needs_check: bool          # parent check: a kid's Done waits for a parent to inspect it (default false)
   is_active: bool
   notes (nullable), created_at
 
@@ -103,6 +104,8 @@ CompletionLog               # history; feeds streaks, badges, and kid-completion
                              # decay state exactly. NULL on rows written before Phase 9 —
                              # indistinguishable from a genuine first completion, which is
                              # why undo is offered only on today's completions.
+  check_status (nullable)    # parent check: null = ordinary; "ready" | "checked" | "sent_back"
+  checked_by -> User (nullable), checked_at (nullable), check_note (nullable)
 
 Reminder                    # the cron polls this table
   id, user_id -> User, task_id -> Task (nullable)
@@ -242,6 +245,8 @@ The distinction matters since Phase 6: **Enchanted Spoon's list is the ongoing r
 **Multi-user assign/claim (Phase 2).** Kids get their **own logins** (role `kid`) with **basic functionality**: see their assigned/claimable chores, check them off. **On completion, notify the owner** (via push). Tasks can be assigned to a member or left open to claim. **No rewards, points, or gamification for the kids' chores** — purely assignment + completion + notification.
 
 **Weekly chores reset every Monday.** On the kid chore surface only, a chore whose cadence is **weekly** (`cadence_days == 7`) resets on a fixed calendar week instead of rolling decay: it reappears every Monday in the member's local week and drops out the moment it's done that week, rather than resurfacing ~3.5 days after each completion. This is the one place the app steps off principle 1 (a predictable weekly checklist reads better for kids than decay drift). It lives entirely in `scheduling.chores_for_user` — every other surface, and every non-weekly chore, keeps plain decay. Migration `0012` did the one-time backdate that put existing weekly chores onto this cycle.
+
+**Parent check (2026-11-14, Maryann's request).** Opt-in per task (`needs_check`, default off — nothing changes until a parent turns it on). A kid's Done on such a task is **ready to check**; a parent then marks it **checked** (they physically inspected it — never inferred, never by an assistant's guess) or **sends it back** (with an optional note), which makes it due again. The state lives on the CompletionLog row, since a check is a verdict on one completion. **Decay resets at "ready to check", not at "checked":** decay measures time since the work was actually done (§1, §4); waiting for the inspection would keep the chore aging and nagging the kid while the parent hasn't looked, push the next cycle late, and put a weekly chore finished Sunday and checked Monday in the wrong week. "Checked" changes no schedule; a send-back reverses the reset exactly as undo does (`previous_last_done_at`). Only adults check, send back, or undo a check; streaks and badges are untouched (as with undo). Parents see a small "Ready for a check" list on Done Today (a quiet link on the home screen only while something waits); kids see "Waiting for a check" and "Needs another go" with the note.
 
 **Maintenance tasks (Phase 2).** Same engine, `task_type = maintenance` (formerly `category`), long cadences (HVAC filters, smoke/CO batteries, gutters, descaling). Give them their own section/filter so they don't clutter daily cleaning.
 

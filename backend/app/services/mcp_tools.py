@@ -183,6 +183,10 @@ TASK_FIELDS = {
     "guest_facing": _bool("True if it matters when company is coming (used by guest mode)."),
     "assignee_id": _int("Household member it's assigned to (from list_members)."),
     "claimable": _bool("True to leave it up for grabs so a kid can claim it."),
+    "needs_check": _bool(
+        "Parent check: true means a kid's Done waits as \"ready to check\" until an adult "
+        "inspects it (mark_checked) or sends it back. Default false."
+    ),
     "supply_ids": _ids("Supplies this task uses (ids from list_supplies). Replaces the whole set."),
     "notes": _str("Free-text notes."),
     "preferred_day": _int(
@@ -228,6 +232,7 @@ TOOLS: list[Tool] = [
             ("GET", "/api/supplies"),
             ("GET", "/api/settings"),
             ("GET", "/api/chores"),
+            ("GET", "/api/checks"),
         ),
     ),
     _read(
@@ -251,8 +256,9 @@ TOOLS: list[Tool] = [
     ),
     _read(
         "get_my_chores",
-        "The signed-in member's assigned chores plus chores up for grabs (the kids' view). "
-        "Works for adults and kids.",
+        "The signed-in member's assigned chores, chores up for grabs, and their chores waiting for "
+        "a parent check (the kids' view). A chore a parent sent back has check_status sent_back "
+        "and check_note. Works for adults and kids.",
         "/api/chores",
     ),
     # ---- Rooms ----------------------------------------------------------
@@ -353,8 +359,8 @@ TOOLS: list[Tool] = [
     Tool(
         name="update_task",
         description=(
-            "Change a task: name, room, type, cadence, time, effort, assignee, supplies, notes, "
-            "preferred day; archive it (is_active=false) or bring it back; or correct when it was "
+            "Change a task: name, room, type, cadence, time, effort, assignee, parent check, supplies, "
+            "notes, preferred day; archive it (is_active=false) or bring it back; or correct when it was "
             "last done (this is a history correction, not a completion — use complete_task for that)."
         ),
         method="PATCH",
@@ -389,8 +395,9 @@ TOOLS: list[Tool] = [
         name="complete_task",
         description=(
             "Mark a task done now: resets its decay, logs it for today, ticks it on any running "
-            "campaign and may earn badges. A kid's completion notifies the adults. Returns "
-            "completion_id for undo_completion."
+            "campaign and may earn badges. A kid's completion notifies the adults; on a needs_check "
+            "task it becomes ready to check instead of plain done. Returns completion_id for "
+            "undo_completion."
         ),
         method="POST",
         path="/api/tasks/{task_id}/complete",
@@ -434,6 +441,70 @@ TOOLS: list[Tool] = [
         },
         required=("task_id", "option"),
         idempotent=True,
+    ),
+    # ---- Parent check ---------------------------------------------------
+    _read(
+        "list_waiting_for_check",
+        "Adults only. The \"To check\" list: chores a kid finished that wait for a parent to "
+        "inspect, longest-waiting first, with who did each and when. Gives completion ids for "
+        "mark_checked and send_back. Kids see their own waiting chores in get_my_chores.",
+        "/api/checks",
+    ),
+    Tool(
+        name="mark_ready_for_check",
+        description=(
+            "Mark a chore done and ready for a parent to check (\"I'm done, can you look?\"). "
+            "Resets its decay like complete_task, but it waits on the To check list until an adult "
+            "inspects it. A kid's complete_task on a needs_check task does this by itself. "
+            "Returns completion_id."
+        ),
+        method="POST",
+        path="/api/tasks/{task_id}/ready-for-check",
+        properties={
+            "task_id": TASK_ID,
+            "source": _str("Where it was done from; leave as direct.", enum=SOURCES),
+        },
+        required=("task_id",),
+    ),
+    Tool(
+        name="mark_checked",
+        description=(
+            "Record that an adult PHYSICALLY INSPECTED a chore in person and approved it. Only call "
+            "when the parent tells you they looked at it themselves. Never on your own guess, "
+            "because a kid says it's done, or to clear the list. Fails unless signed in as an "
+            "adult. completion_id from list_waiting_for_check."
+        ),
+        method="POST",
+        path="/api/checks/{completion_id}/checked",
+        properties={"completion_id": _int("The completion's id, from list_waiting_for_check.")},
+        required=("completion_id",),
+        idempotent=True,
+    ),
+    Tool(
+        name="send_back",
+        description=(
+            "Adults only. A parent looked and the chore isn't up to standard: send it back so it's "
+            "due again, with an optional note the kid sees (and gets as a gentle push). Keep the "
+            "note kind and specific. completion_id from list_waiting_for_check."
+        ),
+        method="POST",
+        path="/api/checks/{completion_id}/send-back",
+        properties={
+            "completion_id": _int("The completion's id, from list_waiting_for_check."),
+            "note": _str("What still needs doing, e.g. \"the mirror still has streaks\".", max_length=500),
+        },
+        required=("completion_id",),
+    ),
+    Tool(
+        name="undo_check",
+        description=(
+            "Adults only. Take back a mark_checked or send_back made by mistake: the chore goes back "
+            "to waiting for a check (undoing a send-back also restores its done state)."
+        ),
+        method="POST",
+        path="/api/checks/{completion_id}/undo",
+        properties={"completion_id": _int("The completion's id.")},
+        required=("completion_id",),
     ),
     # ---- Cleaning sessions ---------------------------------------------
     Tool(

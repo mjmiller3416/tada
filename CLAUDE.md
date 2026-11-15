@@ -19,9 +19,17 @@ additive migrations, no scope creep).
 ## Working here
 
 - Windows checkout (CRLF): WSL git shows every file modified. Use `git.exe` for status, commits and pushes. Single branch: `main` is production (Railway auto-deploys `backend`, `frontend`, `cron` on push); there is no `staging`, so the general flow squash-merges into `main`.
-- Backend tests from WSL need a Linux venv outside the repo (e.g. `uv venv --python 3.12 <dir> && uv pip install -r backend/requirements-dev.txt`), then `python -m pytest` in `backend/` (SQLite in memory; `tests/conftest.py`). Old migrations are Postgres-only, so `alembic upgrade head` on SQLite fails before 0013 — test a new migration by `create_all` of the older tables, `alembic stamp <prev>`, then upgrade.
+- Backend tests from WSL need a Linux venv outside the repo (e.g. `uv venv --python 3.12 <dir> && uv pip install -r backend/requirements-dev.txt`), then `python -m pytest` in `backend/` (SQLite in memory; `tests/conftest.py`). Old migrations are Postgres-only, so `alembic upgrade head` on SQLite fails before 0013 — test a new migration by `create_all` of the older tables, `alembic stamp <prev>`, then upgrade; `alembic upgrade <prev>:<new> --sql` with a `postgresql+psycopg://` DATABASE_URL prints production's SQL without a database. Adding a foreign-key column needs `op.batch_alter_table` (plain ALTERs on Postgres; SQLite can't add a constraint otherwise, see 0014).
+- Some files are CRLF on disk and some LF; preserve whichever a file has (editing a CRLF file with plain Python `open()` converts it and shows the whole file as changed).
 - Frontend through Windows: `powershell.exe -NoProfile -Command "Set-Location 'D:\Dev\tada\frontend'; npx tsc --noEmit; npm run build"`.
 - How it ships and env vars: `docs/deployment.md`. Flags actually flipped in production: `docs/rollout-status.md`.
+
+## Parent check (needs_check, migration 0014)
+
+- Rules and reasoning: `services/parent_check.py` docstring and spec §6 "Parent check". State is on `completion_logs` (`check_status` ready/checked/sent_back, `checked_by`, `checked_at`, `check_note`); `tasks.needs_check` is the opt-in. "Waiting" = the task's latest completion is `ready` (`pending_states`); nothing on the task is kept in sync.
+- Decay resets at "ready" (the one completion path, `completion.record_completion`, writes `ready` itself for a kid on a needs_check task, so Hearth, Orbit and ChatGPT completions all honour it). A send-back restores `previous_last_done_at` like undo and is refused once a newer completion stands. Sent-back rows don't count as done (`parent_check.counts_as_done()` in Done Today, Hearth, Orbit, campaign untick).
+- Routes: `POST /api/tasks/{id}/ready-for-check`; `GET /api/checks`, `POST /api/checks/{completion_id}/checked | send-back | undo` (all `require_owner`). Undoing a completion that's checked/sent back is 409 (`scheduling.UndoAfterCheck`; catch `UndoRefused`, the base of every undo refusal).
+- UI: `components/ToCheck.tsx` on Done Today (+ a link on the owner home while something waits), `KidHome` waiting/sent-back states, the TaskForm toggle. MCP: `list_waiting_for_check`, `mark_ready_for_check`, `mark_checked`, `send_back`, `undo_check`, `needs_check` on create/update_task.
 
 ## ChatGPT connector (MCP server + OAuth 2.1)
 

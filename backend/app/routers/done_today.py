@@ -21,7 +21,7 @@ from app.models.user import User
 from app.routers.auth import require_owner
 from app.schemas.badges import badge_to_read
 from app.schemas.done_today import DoneTodayEntry, DoneTodayResponse
-from app.services import settings_service
+from app.services import parent_check, settings_service
 
 router = APIRouter(prefix="/api/done-today", tags=["done-today"])
 
@@ -50,6 +50,8 @@ def done_today(
         .where(
             CompletionLog.completed_at >= day_start,
             CompletionLog.completed_at < day_end,
+            # A chore a parent sent back wasn't done — it's due again.
+            parent_check.counts_as_done(),
         )
         .order_by(CompletionLog.completed_at.desc())
     ).all()
@@ -80,6 +82,12 @@ def done_today(
                     else "Someone"
                 ),
                 source=log.source,
+                check_status=log.check_status,
+                checked_by_name=(
+                    members[log.checked_by].name.split()[0]
+                    if log.checked_by in members
+                    else None
+                ),
             )
             for log in logs
         ],
