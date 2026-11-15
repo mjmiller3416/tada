@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import auth, campaigns, chores, completions, done_today, feedback, hearth, lists, members, onboarding, orbit, push, rooms, sessions
 from app.routers import settings as settings_router
-from app.routers import supplies, tasks, zones
+from app.routers import mcp, oauth, supplies, tasks, zones
 
 app = FastAPI(title="Tada API")
 
@@ -34,6 +34,9 @@ app.include_router(completions.router)
 app.include_router(feedback.router)
 app.include_router(hearth.router)
 app.include_router(orbit.router)
+# The ChatGPT connector: OAuth 2.1 server + discovery, and the MCP endpoint.
+app.include_router(oauth.router)
+app.include_router(mcp.router)
 
 
 @app.get("/health")

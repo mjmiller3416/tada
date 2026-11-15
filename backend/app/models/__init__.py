@@ -10,6 +10,7 @@ from app.models.reminder import Reminder
 from app.models.campaign import Campaign, CampaignTask
 from app.models.lists import List, ListItem, ListSection
 from app.models.badge import Badge, UserBadge
+from app.models.oauth import OAuthClient, OAuthCode, OAuthToken
 
 __all__ = [
     "User",
@@ -29,4 +30,7 @@ __all__ = [
     "ListItem",
     "Badge",
     "UserBadge",
+    "OAuthClient",
+    "OAuthCode",
+    "OAuthToken",
 ]

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
+import ConnectedAppsSection from "@/components/ConnectedAppsSection";
 import FeedbackSection from "@/components/FeedbackSection";
 import HouseholdSection from "@/components/HouseholdSection";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
@@ -429,6 +430,8 @@ function SettingsScreen({ currentUserId }: { currentUserId: number }) {
           </p>
           <PushSubscribeButton />
         </Card>
+
+        <ConnectedAppsSection />
 
         <FeedbackSection />
 

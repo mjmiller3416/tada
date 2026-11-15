@@ -120,6 +120,7 @@ same keys on the matching Railway service (Railway dashboard → service → Var
 | `MEALGENIE_API_URL` / `MEALGENIE_API_KEY` | ✓ | | |
 | `GITHUB_TOKEN` / `GITHUB_REPO` | ✓ | | |
 | `ORBIT_API_TOKEN` | ✓ | | |
+| `MCP_ENABLED` (default `true`) | ✓ | | |
 | `NEXT_PUBLIC_API_URL` | | | ✓ |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | | | ✓ |
 
@@ -141,6 +142,10 @@ Notes:
   It must equal the matching token on Orbit's Railway service and must not reuse
   Hearth's device token. Empty = the integration is off (every `/api/orbit` route
   returns 503) without affecting anything else.
+- `FRONTEND_URL` is also the ChatGPT connector's public origin: the OAuth issuer and
+  the MCP resource (`<FRONTEND_URL>/api/mcp`) are built from it, so it must be the exact
+  deployed frontend URL with no path. `MCP_ENABLED=false` switches the connector off
+  (see CLAUDE.md, "ChatGPT connector").
 - `GITHUB_TOKEN` is a fine-grained PAT with Issues: write scoped to the one repo named
   in `GITHUB_REPO` (e.g. `mjmiller3416/tada`). Leaving either empty
   disables in-app feedback's GitHub issue creation (the Settings section still submits

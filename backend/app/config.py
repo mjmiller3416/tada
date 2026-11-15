@@ -60,5 +60,14 @@ class Settings(BaseSettings):
     # (every /api/orbit route then returns 503). "backend" service only.
     orbit_api_token: str = ""
 
+    # ChatGPT connector (routers/mcp.py + routers/oauth.py): the MCP
+    # server at <FRONTEND_URL>/api/mcp and the OAuth 2.1 authorization
+    # server ChatGPT signs in through. On by default; set to false to turn
+    # the whole connector off (every /api/mcp and /api/oauth route then
+    # answers 503 and the discovery documents 404) without touching
+    # anything else. The public origin is FRONTEND_URL — the browser and
+    # ChatGPT only ever reach the backend through the frontend's proxy.
+    mcp_enabled: bool = True
+
 
 settings = Settings()

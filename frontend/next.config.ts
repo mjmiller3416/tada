@@ -19,6 +19,22 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${backendUrl}/api/:path*`,
       },
+      // The ChatGPT connector's OAuth discovery documents (RFC 9728 /
+      // RFC 8414) are served by the backend too (routers/oauth.py), at
+      // this origin's root as ChatGPT expects. Only the oauth-* names —
+      // nothing else under /.well-known is forwarded.
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: `${backendUrl}/.well-known/oauth-authorization-server`,
+      },
+      {
+        source: "/.well-known/oauth-protected-resource",
+        destination: `${backendUrl}/.well-known/oauth-protected-resource`,
+      },
+      {
+        source: "/.well-known/oauth-protected-resource/:path*",
+        destination: `${backendUrl}/.well-known/oauth-protected-resource/:path*`,
+      },
     ];
   },
   async redirects() {

@@ -857,3 +857,26 @@ export function runOnboarding(input: {
     { method: "POST", body: JSON.stringify(input) },
   );
 }
+
+/* ---- Connected apps (the ChatGPT connector, backend routers/oauth.py) ---- */
+
+export type ConnectedApp = {
+  client_name: string;
+  user_name: string;
+  last_used_at: string;
+};
+
+export type ConnectedAppsResponse = {
+  /** False when the connector is switched off (MCP_ENABLED=false). */
+  enabled: boolean;
+  connections: ConnectedApp[];
+};
+
+export function getConnectedApps() {
+  return apiFetch<ConnectedAppsResponse>("/api/oauth/connections");
+}
+
+/** Signs every connected ChatGPT out; each has to approve again. */
+export function disconnectAllApps() {
+  return apiFetch<void>("/api/oauth/connections", { method: "DELETE" });
+}
